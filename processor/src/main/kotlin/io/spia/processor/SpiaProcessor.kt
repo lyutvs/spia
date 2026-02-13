@@ -56,12 +56,8 @@ class SpiaProcessor(
             logger.info("SPIA: Generated SDK at $outputPath")
         } else {
             // Default: write to build directory
-            val projectDir = environment.options["spia.projectDir"]
-            val defaultDir = if (projectDir != null) {
-                File(projectDir, "build/generated/spia")
-            } else {
-                File("build/generated/spia")
-            }
+            val projectDir = environment.options["spia.projectDir"] ?: error("SPIA plugin did not forward projectDir")
+            val defaultDir = File(projectDir, "build/generated/spia")
             defaultDir.mkdirs()
             val file = File(defaultDir, "api-sdk.ts")
             file.writeText(content)
