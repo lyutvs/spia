@@ -2,9 +2,6 @@ plugins {
     kotlin("jvm")
 }
 
-group = "io.spia"
-version = "0.1.0"
-
 repositories {
     mavenCentral()
 }

@@ -7,9 +7,6 @@ plugins {
     id("io.spia")
 }
 
-group = "io.spia"
-version = "0.1.0"
-
 repositories {
     mavenCentral()
 }

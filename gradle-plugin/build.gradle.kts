@@ -3,6 +3,9 @@ plugins {
     `java-gradle-plugin`
 }
 
+group = providers.gradleProperty("group").get()
+version = providers.gradleProperty("version").get()
+
 repositories {
     gradlePluginPortal()
     mavenCentral()
