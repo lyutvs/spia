@@ -10,11 +10,87 @@ import io.spia.processor.model.TypeInfo
 
 class TypeResolver(private val config: SdkConfig) {
 
+    // Pass 1: FQN → TS name. Populated via preRegister(), consulted in resolveCustomType().
+    private val dtoNameMap = mutableMapOf<String, String>()
+    private val enumNameMap = mutableMapOf<String, String>()
+
+    // Pass 2: FQN → resolved TypeInfo.
     private val resolvedDtos = mutableMapOf<String, TypeInfo.Dto>()
     private val resolvedEnums = mutableMapOf<String, TypeInfo.Enum>()
 
     fun allDtos(): Collection<TypeInfo.Dto> = resolvedDtos.values
     fun allEnums(): Collection<TypeInfo.Enum> = resolvedEnums.values
+
+    /**
+     * Pass 1: pre-register all custom types reachable from [ksType] so that TS names
+     * are assigned before any [resolve] call materializes field references. This is
+     * required for FQN-based deduplication: if two classes share a simple name across
+     * packages, both get package-prefixed disambiguated names, and field references
+     * in other DTOs must see the final name.
+     */
+    fun preRegister(ksType: KSType) {
+        val visited = mutableSetOf<String>()
+        preRegisterRec(ksType, visited)
+    }
+
+    private fun preRegisterRec(ksType: KSType, visited: MutableSet<String>) {
+        val declaration = ksType.declaration as? KSClassDeclaration ?: return
+        val fqn = declaration.qualifiedName?.asString() ?: return
+
+        if (fqn in visited) return
+        visited += fqn
+
+        // Recurse into type arguments regardless (e.g. List<UserDto>).
+        ksType.arguments.forEach { arg ->
+            arg.type?.resolve()?.let { preRegisterRec(it, visited) }
+        }
+
+        if (isStandardType(fqn)) return
+        if (dtoNameMap.containsKey(fqn) || enumNameMap.containsKey(fqn)) return
+
+        val simpleName = declaration.simpleName.asString()
+        val isEnum = declaration.classKind == ClassKind.ENUM_CLASS
+
+        // Detect simple-name collision across both name maps.
+        val collidingFqns = (dtoNameMap.entries + enumNameMap.entries)
+            .filter { (otherFqn, otherName) ->
+                otherFqn != fqn && simpleOf(otherName) == simpleName
+            }
+            .map { it.key }
+
+        val assignedName = if (collidingFqns.isEmpty()) simpleName else disambiguate(fqn, simpleName)
+
+        // If a collision occurred with entries that are still using the plain simpleName,
+        // retroactively rename those so every colliding FQN is package-prefixed.
+        collidingFqns.forEach { otherFqn ->
+            val currentName = dtoNameMap[otherFqn] ?: enumNameMap[otherFqn]
+            if (currentName == simpleName) {
+                val renamed = disambiguate(otherFqn, simpleName)
+                if (dtoNameMap.containsKey(otherFqn)) dtoNameMap[otherFqn] = renamed
+                if (enumNameMap.containsKey(otherFqn)) enumNameMap[otherFqn] = renamed
+            }
+        }
+
+        if (isEnum) {
+            enumNameMap[fqn] = assignedName
+        } else {
+            dtoNameMap[fqn] = assignedName
+            // Recurse into field types for transitive DTO discovery.
+            declaration.getAllProperties().forEach { prop ->
+                preRegisterRec(prop.type.resolve(), visited)
+            }
+        }
+    }
+
+    private fun simpleOf(tsName: String): String =
+        tsName.substringAfterLast('_')
+
+    private fun disambiguate(fqn: String, simpleName: String): String {
+        val pkgPath = fqn.removeSuffix(".$simpleName")
+        val lastSegment = pkgPath.substringAfterLast('.', missingDelimiterValue = pkgPath)
+        val safePrefix = lastSegment.ifBlank { "pkg" }
+        return "${safePrefix}_$simpleName"
+    }
 
     fun resolve(ksType: KSType): TypeInfo {
         val nullable = ksType.nullability == Nullability.NULLABLE
@@ -80,36 +156,59 @@ class TypeResolver(private val config: SdkConfig) {
             return TypeInfo.Unknown(declaration.simpleName.asString())
         }
 
-        val name = declaration.simpleName.asString()
+        val fqn = declaration.qualifiedName?.asString() ?: declaration.simpleName.asString()
 
         if (declaration.classKind == ClassKind.ENUM_CLASS) {
-            resolvedEnums.getOrPut(name) {
+            val tsName = enumNameMap[fqn] ?: declaration.simpleName.asString()
+            resolvedEnums.getOrPut(fqn) {
                 val constants = declaration.declarations
                     .filterIsInstance<KSClassDeclaration>()
                     .filter { it.classKind == ClassKind.ENUM_ENTRY }
                     .map { it.simpleName.asString() }
                     .toList()
-                TypeInfo.Enum(name, constants)
+                TypeInfo.Enum(tsName, constants)
             }
-            return TypeInfo.Enum(name, resolvedEnums[name]!!.constants)
+            return resolvedEnums[fqn]!!
         }
 
-        // DTO: data class or regular class with properties
-        resolvedDtos.getOrPut(name) {
-            // Create a placeholder first to handle circular references
-            val placeholder = TypeInfo.Dto(name, emptyList())
-            resolvedDtos[name] = placeholder
+        val tsName = dtoNameMap[fqn] ?: declaration.simpleName.asString()
+        resolvedDtos[fqn]?.let { return it }
 
-            val fields = declaration.getAllProperties().map { prop ->
-                FieldInfo(
-                    name = prop.simpleName.asString(),
-                    type = resolve(prop.type.resolve()),
-                )
-            }.toList()
+        val fields = declaration.getAllProperties().map { prop ->
+            FieldInfo(
+                name = prop.simpleName.asString(),
+                type = resolve(prop.type.resolve()),
+            )
+        }.toList()
 
-            TypeInfo.Dto(name, fields)
-        }
+        val dto = TypeInfo.Dto(tsName, fields)
+        resolvedDtos[fqn] = dto
+        return dto
+    }
 
-        return TypeInfo.Dto(name, resolvedDtos[name]!!.fields)
+    private fun isStandardType(fqn: String): Boolean = when (fqn) {
+        "kotlin.String", "java.lang.String",
+        "kotlin.Boolean", "java.lang.Boolean",
+        "kotlin.Int", "java.lang.Integer",
+        "kotlin.Short", "java.lang.Short",
+        "kotlin.Byte", "java.lang.Byte",
+        "kotlin.Float", "java.lang.Float",
+        "kotlin.Double", "java.lang.Double",
+        "kotlin.Long", "java.lang.Long",
+        "kotlin.Unit", "java.lang.Void",
+        "kotlin.Any", "java.lang.Object",
+        "java.time.LocalDate", "java.time.LocalDateTime", "java.time.Instant",
+        "java.time.ZonedDateTime", "java.time.OffsetDateTime",
+        "java.util.Date", "java.util.UUID",
+        "kotlin.collections.List", "kotlin.collections.MutableList",
+        "kotlin.collections.Set", "kotlin.collections.MutableSet",
+        "kotlin.collections.Collection", "kotlin.collections.MutableCollection",
+        "java.util.List", "java.util.ArrayList",
+        "java.util.Set", "java.util.HashSet",
+        "java.util.Collection",
+        "kotlin.collections.Map", "kotlin.collections.MutableMap",
+        "java.util.Map", "java.util.HashMap",
+        "org.springframework.http.ResponseEntity" -> true
+        else -> false
     }
 }

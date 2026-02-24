@@ -6,6 +6,7 @@ import com.google.devtools.ksp.processing.SymbolProcessor
 import com.google.devtools.ksp.processing.SymbolProcessorEnvironment
 import com.google.devtools.ksp.symbol.KSAnnotated
 import com.google.devtools.ksp.symbol.KSClassDeclaration
+import com.google.devtools.ksp.symbol.KSFunctionDeclaration
 import io.spia.processor.model.*
 import java.io.File
 
@@ -39,6 +40,17 @@ class SpiaProcessor(
         val analyzer = ControllerAnalyzer(typeResolver)
         val generator = TypeScriptGenerator(config)
 
+        // Pass 1: pre-register every DTO/enum reachable from controller signatures so
+        // TS names (including same-simple-name disambiguation) are finalized before any
+        // field reference is resolved.
+        controllers.forEach { controller ->
+            controller.declarations.filterIsInstance<KSFunctionDeclaration>().forEach { fn ->
+                fn.parameters.forEach { p -> typeResolver.preRegister(p.type.resolve()) }
+                fn.returnType?.resolve()?.let { typeResolver.preRegister(it) }
+            }
+        }
+
+        // Pass 2: resolve and analyze controllers with stable names in place.
         val controllerInfos = controllers.map { analyzer.analyze(it) }
         val tsContent = generator.generate(controllerInfos, typeResolver)
 
