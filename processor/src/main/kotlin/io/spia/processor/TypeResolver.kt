@@ -159,20 +159,25 @@ class TypeResolver(private val config: SdkConfig) {
         val fqn = declaration.qualifiedName?.asString() ?: declaration.simpleName.asString()
 
         if (declaration.classKind == ClassKind.ENUM_CLASS) {
+            resolvedEnums[fqn]?.let { return it }
             val tsName = enumNameMap[fqn] ?: declaration.simpleName.asString()
-            resolvedEnums.getOrPut(fqn) {
-                val constants = declaration.declarations
-                    .filterIsInstance<KSClassDeclaration>()
-                    .filter { it.classKind == ClassKind.ENUM_ENTRY }
-                    .map { it.simpleName.asString() }
-                    .toList()
-                TypeInfo.Enum(tsName, constants)
-            }
-            return resolvedEnums[fqn]!!
+            val constants = declaration.declarations
+                .filterIsInstance<KSClassDeclaration>()
+                .filter { it.classKind == ClassKind.ENUM_ENTRY }
+                .map { it.simpleName.asString() }
+                .toList()
+            val enum = TypeInfo.Enum(tsName, constants)
+            resolvedEnums[fqn] = enum
+            return enum
         }
 
         val tsName = dtoNameMap[fqn] ?: declaration.simpleName.asString()
         resolvedDtos[fqn]?.let { return it }
+
+        // Install placeholder before recursing so a circular back-reference returns
+        // this entry instead of re-entering and looping.
+        val placeholder = TypeInfo.Dto(tsName, emptyList())
+        resolvedDtos[fqn] = placeholder
 
         val fields = declaration.getAllProperties().map { prop ->
             FieldInfo(
@@ -181,9 +186,12 @@ class TypeResolver(private val config: SdkConfig) {
             )
         }.toList()
 
-        val dto = TypeInfo.Dto(tsName, fields)
-        resolvedDtos[fqn] = dto
-        return dto
+        // Overwrite the placeholder with the real DTO carrying the fields. This is the
+        // fix: getOrPut-based predecessors discarded the lambda's return value and
+        // stored the empty placeholder permanently.
+        val real = TypeInfo.Dto(tsName, fields)
+        resolvedDtos[fqn] = real
+        return real
     }
 
     private fun isStandardType(fqn: String): Boolean = when (fqn) {
