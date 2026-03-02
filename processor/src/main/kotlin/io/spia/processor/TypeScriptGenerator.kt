@@ -162,21 +162,19 @@ class TypeScriptGenerator(private val config: SdkConfig) {
             ApiClient.FETCH -> {
                 sb.append("      ${endpoint.functionName}: async ($params): Promise<$promiseType> => {\n")
                 val queryString = buildFetchQueryString(queryParams)
-                val urlExpr = if (queryString.isNotEmpty()) {
-                    "`\${baseUrl}${fullPath}$queryString`"
-                } else {
-                    tsPath.replace("client.get(", "").let { "`\${baseUrl}${fullPath}`" }
-                }
-
-                val fetchPath = buildFetchPath(fullPath, pathVariables)
+                val fetchPathBase = buildFetchPath(fullPath, pathVariables)
+                // Drop the trailing backtick, append the query fragment, re-close the template literal.
+                val fetchUrl = if (queryString.isNotEmpty()) {
+                    fetchPathBase.trimEnd('`') + queryString + "`"
+                } else fetchPathBase
 
                 when (endpoint.httpMethod) {
                     HttpMethod.GET, HttpMethod.DELETE -> {
-                        sb.appendLine("        const res = await fetch($fetchPath, { method: '${endpoint.httpMethod.name}' });")
+                        sb.appendLine("        const res = await fetch($fetchUrl, { method: '${endpoint.httpMethod.name}' });")
                     }
                     HttpMethod.POST, HttpMethod.PUT, HttpMethod.PATCH -> {
                         val bodyArg = bodyParam?.name ?: "undefined"
-                        sb.appendLine("        const res = await fetch($fetchPath, { method: '${endpoint.httpMethod.name}', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify($bodyArg) });")
+                        sb.appendLine("        const res = await fetch($fetchUrl, { method: '${endpoint.httpMethod.name}', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify($bodyArg) });")
                     }
                 }
                 if (promiseType != "void") {
@@ -194,7 +192,7 @@ class TypeScriptGenerator(private val config: SdkConfig) {
         if (pathVariables.isEmpty()) return "`$path`"
         var tsPath = path
         for (pv in pathVariables) {
-            tsPath = tsPath.replace("{${pv.name}}", "\${${pv.name}}")
+            tsPath = tsPath.replace("{${pv.name}}", "\${encodeURIComponent(String(${pv.name}))}")
         }
         return "`$tsPath`"
     }
@@ -202,12 +200,13 @@ class TypeScriptGenerator(private val config: SdkConfig) {
     private fun buildFetchPath(path: String, pathVariables: List<ParameterInfo>): String {
         var tsPath = path
         for (pv in pathVariables) {
-            tsPath = tsPath.replace("{${pv.name}}", "\${${pv.name}}")
+            tsPath = tsPath.replace("{${pv.name}}", "\${encodeURIComponent(String(${pv.name}))}")
         }
         return "`\${baseUrl}$tsPath`"
     }
 
     private fun buildAxiosConfig(queryParams: List<ParameterInfo>): String {
+        // axios serializes the params object itself — no manual encoding needed here.
         if (queryParams.isEmpty()) return ""
         val params = queryParams.joinToString(", ") { "${it.name}: ${it.name}" }
         return ", { params: { $params } }"
@@ -215,9 +214,15 @@ class TypeScriptGenerator(private val config: SdkConfig) {
 
     private fun buildFetchQueryString(queryParams: List<ParameterInfo>): String {
         if (queryParams.isEmpty()) return ""
-        val params = queryParams.joinToString("&") { "${it.name}=\${${it.name}}" }
+        val params = queryParams.joinToString("&") {
+            "${encodeURIComponentLiteral(it.name)}=\${encodeURIComponent(String(${it.name}))}"
+        }
         return "?$params"
     }
+
+    private fun encodeURIComponentLiteral(name: String): String =
+        java.net.URLEncoder.encode(name, Charsets.UTF_8)
+            .replace("+", "%20")
 
     private fun combinePaths(base: String, path: String): String {
         val normalizedBase = base.trimEnd('/')
