@@ -19,6 +19,8 @@ data class ParameterInfo(
     val name: String,
     val type: TypeInfo,
     val kind: ParameterKind,
+    val required: Boolean = true,
+    val defaultValue: String? = null,
 )
 
 enum class HttpMethod { GET, POST, PUT, DELETE, PATCH }
