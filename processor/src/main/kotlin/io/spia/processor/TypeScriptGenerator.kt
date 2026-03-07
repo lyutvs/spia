@@ -121,14 +121,25 @@ class TypeScriptGenerator(private val config: SdkConfig) {
     private fun renderEndpoint(endpoint: EndpointInfo, fullPath: String): String {
         val sb = StringBuilder()
 
-        // JSDoc
-        if (endpoint.jsdoc != null) {
-            sb.appendLine("      /** ${endpoint.jsdoc} */")
+        // Build a JSDoc block combining the source docstring and any @param @default notes
+        // for optional @RequestParam values. A non-null defaultValue is Spring's source of
+        // truth — we preserve it here without baking it into the SDK signature.
+        val jsdocLines = mutableListOf<String>()
+        endpoint.jsdoc?.let { jsdocLines += it }
+        endpoint.parameters.filter { it.defaultValue != null }.forEach { p ->
+            jsdocLines += "@param {${renderType(p.type)}} [${p.name}=${p.defaultValue}] Server default: ${p.defaultValue}"
+        }
+        if (jsdocLines.isNotEmpty()) {
+            sb.appendLine("      /**")
+            jsdocLines.forEach { sb.appendLine("       * $it") }
+            sb.appendLine("       */")
         }
 
-        // Parameter list
+        // Parameter list — optional query params get a TS-level `?` marker so callers
+        // may omit them; fetch/axios builders will skip undefined values below.
         val params = endpoint.parameters.joinToString(", ") { param ->
-            "${param.name}: ${renderType(param.type)}"
+            val marker = if (param.kind == ParameterKind.QUERY && !param.required) "?" else ""
+            "${param.name}$marker: ${renderType(param.type)}"
         }
 
         // Return type
@@ -207,17 +218,38 @@ class TypeScriptGenerator(private val config: SdkConfig) {
 
     private fun buildAxiosConfig(queryParams: List<ParameterInfo>): String {
         // axios serializes the params object itself — no manual encoding needed here.
+        // Optional params are spread conditionally so an explicit `undefined` is dropped
+        // from the outgoing query entirely rather than serialized as "undefined".
         if (queryParams.isEmpty()) return ""
-        val params = queryParams.joinToString(", ") { "${it.name}: ${it.name}" }
-        return ", { params: { $params } }"
+        val parts = queryParams.joinToString(", ") { p ->
+            if (p.required) "${p.name}: ${p.name}"
+            else "...(${p.name} !== undefined ? { ${p.name}: ${p.name} } : {})"
+        }
+        return ", { params: { $parts } }"
     }
 
     private fun buildFetchQueryString(queryParams: List<ParameterInfo>): String {
         if (queryParams.isEmpty()) return ""
-        val params = queryParams.joinToString("&") {
-            "${encodeURIComponentLiteral(it.name)}=\${encodeURIComponent(String(${it.name}))}"
+        val hasOptional = queryParams.any { !it.required }
+        if (!hasOptional) {
+            val params = queryParams.joinToString("&") {
+                "${encodeURIComponentLiteral(it.name)}=\${encodeURIComponent(String(${it.name}))}"
+            }
+            return "?$params"
         }
-        return "?$params"
+        // Build a conditional URLSearchParams expression so undefined values skip the wire.
+        val builder = buildString {
+            append("?\${(() => { const _p = new URLSearchParams();")
+            queryParams.forEach { p ->
+                if (p.required) {
+                    append(" _p.append('${p.name}', String(${p.name}));")
+                } else {
+                    append(" if (${p.name} !== undefined) _p.append('${p.name}', String(${p.name}));")
+                }
+            }
+            append(" return _p.toString(); })()}")
+        }
+        return builder
     }
 
     private fun encodeURIComponentLiteral(name: String): String =
