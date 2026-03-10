@@ -3,6 +3,7 @@ package io.spia.processor
 import com.google.devtools.ksp.symbol.ClassKind
 import com.google.devtools.ksp.symbol.KSClassDeclaration
 import com.google.devtools.ksp.symbol.KSType
+import com.google.devtools.ksp.symbol.KSTypeParameter
 import com.google.devtools.ksp.symbol.Nullability
 import io.spia.processor.model.FieldInfo
 import io.spia.processor.model.SdkConfig
@@ -17,9 +18,11 @@ class TypeResolver(private val config: SdkConfig) {
     // Pass 2: FQN → resolved TypeInfo.
     private val resolvedDtos = mutableMapOf<String, TypeInfo.Dto>()
     private val resolvedEnums = mutableMapOf<String, TypeInfo.Enum>()
+    private val resolvedGenerics = mutableMapOf<String, TypeInfo.Generic>()
 
     fun allDtos(): Collection<TypeInfo.Dto> = resolvedDtos.values
     fun allEnums(): Collection<TypeInfo.Enum> = resolvedEnums.values
+    fun allGenerics(): Collection<TypeInfo.Generic> = resolvedGenerics.values
 
     /**
      * Pass 1: pre-register all custom types reachable from [ksType] so that TS names
@@ -94,8 +97,16 @@ class TypeResolver(private val config: SdkConfig) {
 
     fun resolve(ksType: KSType): TypeInfo {
         val nullable = ksType.nullability == Nullability.NULLABLE
-        val qualifiedName = ksType.declaration.qualifiedName?.asString() ?: return TypeInfo.Unknown("unknown", nullable)
+        val declaration = ksType.declaration
 
+        // Generic type parameters (e.g., `T` inside `Page<T>`) are surfaced verbatim
+        // so the generator can render them as TS type parameter names.
+        if (declaration is KSTypeParameter) {
+            val name = declaration.name.asString()
+            return TypeInfo.TypeParameter(name, nullable)
+        }
+
+        val qualifiedName = declaration.qualifiedName?.asString() ?: return TypeInfo.Unknown("unknown", nullable)
         val base = resolveByName(qualifiedName, ksType)
         return if (nullable) base.withNullable(true) else base
     }
@@ -172,6 +183,38 @@ class TypeResolver(private val config: SdkConfig) {
         }
 
         val tsName = dtoNameMap[fqn] ?: declaration.simpleName.asString()
+        val isGeneric = declaration.typeParameters.isNotEmpty()
+
+        if (isGeneric) {
+            // Parameterized class: emit (or reuse) one generic interface definition
+            // per FQN regardless of type arguments. At usage sites we substitute
+            // arguments in the TS rendering.
+            val resolvedArgs = ksType.arguments.map { arg ->
+                arg.type?.resolve()?.let { resolve(it) } ?: TypeInfo.Unknown("unknown")
+            }
+            resolvedGenerics[fqn]?.let { cached ->
+                return cached.copy(typeArguments = resolvedArgs)
+            }
+            val placeholder = TypeInfo.Generic(
+                name = tsName,
+                typeParameters = declaration.typeParameters.map { it.name.asString() },
+                fields = emptyList(),
+                typeArguments = emptyList(),
+            )
+            resolvedGenerics[fqn] = placeholder
+
+            val fields = declaration.getAllProperties().map { prop ->
+                FieldInfo(
+                    name = prop.simpleName.asString(),
+                    type = resolve(prop.type.resolve()),
+                )
+            }.toList()
+
+            val realDefinition = placeholder.copy(fields = fields)
+            resolvedGenerics[fqn] = realDefinition
+            return realDefinition.copy(typeArguments = resolvedArgs)
+        }
+
         resolvedDtos[fqn]?.let { return it }
 
         // Install placeholder before recursing so a circular back-reference returns

@@ -88,6 +88,10 @@ class TypeScriptGenerator(private val config: SdkConfig) {
         is TypeInfo.Enum -> type.name
         is TypeInfo.Dto -> type.name
         is TypeInfo.Unknown -> type.rawName
+        // Compile-safe stubs for the sealed-class variants introduced in task 10.
+        // Task 11 replaces these with actual rendering.
+        is TypeInfo.Generic -> TODO("Generic rendering implemented in task 11")
+        is TypeInfo.TypeParameter -> TODO("TypeParameter rendering implemented in task 11")
     }
 
     private fun renderCreateApi(controllers: List<ControllerInfo>): String {
