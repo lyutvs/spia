@@ -18,8 +18,9 @@ class TypeScriptGenerator(private val config: SdkConfig) {
         // DTO types section
         val dtos = typeResolver.allDtos()
         val enums = typeResolver.allEnums()
+        val generics = typeResolver.allGenerics()
 
-        if (dtos.isNotEmpty() || enums.isNotEmpty()) {
+        if (dtos.isNotEmpty() || enums.isNotEmpty() || generics.isNotEmpty()) {
             sb.appendLine("/* ──────────── DTO Types ──────────── */")
             sb.appendLine()
         }
@@ -31,6 +32,11 @@ class TypeScriptGenerator(private val config: SdkConfig) {
 
         for (dto in dtos.sortedBy { it.name }) {
             sb.append(renderDto(dto))
+            sb.appendLine()
+        }
+
+        for (generic in generics.sortedBy { it.name }) {
+            sb.append(renderGenericInterface(generic))
             sb.appendLine()
         }
 
@@ -88,10 +94,31 @@ class TypeScriptGenerator(private val config: SdkConfig) {
         is TypeInfo.Enum -> type.name
         is TypeInfo.Dto -> type.name
         is TypeInfo.Unknown -> type.rawName
-        // Compile-safe stubs for the sealed-class variants introduced in task 10.
-        // Task 11 replaces these with actual rendering.
-        is TypeInfo.Generic -> TODO("Generic rendering implemented in task 11")
-        is TypeInfo.TypeParameter -> TODO("TypeParameter rendering implemented in task 11")
+        is TypeInfo.Generic -> {
+            if (type.typeArguments.isEmpty()) {
+                // Raw reference (shouldn't normally happen at usage site, but keep safe).
+                "${type.name}<${type.typeParameters.joinToString(", ")}>"
+            } else {
+                "${type.name}<${type.typeArguments.joinToString(", ") { renderType(it) }}>"
+            }
+        }
+        is TypeInfo.TypeParameter -> type.name
+    }
+
+    private fun renderGenericInterface(generic: TypeInfo.Generic): String {
+        val sb = StringBuilder()
+        val params = generic.typeParameters.joinToString(", ")
+        sb.appendLine("export interface ${generic.name}<$params> {")
+        for (field in generic.fields) {
+            val tsType = renderType(field.type)
+            if (field.type.nullable) {
+                sb.appendLine("  ${field.name}?: $tsType;")
+            } else {
+                sb.appendLine("  ${field.name}: $tsType;")
+            }
+        }
+        sb.appendLine("}")
+        return sb.toString()
     }
 
     private fun renderCreateApi(controllers: List<ControllerInfo>): String {
