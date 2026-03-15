@@ -9,6 +9,11 @@ export interface CreateUserRequest {
   email: string;
 }
 
+export interface UpdateUserRequest {
+  email: string | null;
+  bio: string | null;
+}
+
 export interface UserProfileDto {
   id: number;
   name: string;
@@ -21,13 +26,29 @@ export interface UserProfileDto {
 export function createApi(client: AxiosInstance) {
   return {
     user: {
-      /** Retrieve a user profile. */
+      /**
+       * Retrieve a user profile.
+       */
       getUserProfile: (id: number): Promise<UserProfileDto> =>
-        client.get(`/api/users/${id}`).then(r => r.data),
+        client.get(`/api/users/${encodeURIComponent(String(id))}`).then(r => r.data),
 
-      /** Create a new user. */
+      /**
+       * Create a new user.
+       */
       createUser: (request: CreateUserRequest): Promise<UserProfileDto> =>
         client.post(`/api/users`, request).then(r => r.data),
+
+      /**
+       * Update an existing user.
+       */
+      updateUser: (id: number, request: UpdateUserRequest): Promise<UserProfileDto> =>
+        client.put(`/api/users/${encodeURIComponent(String(id))}`, request).then(r => r.data),
+
+      /**
+       * Delete a user.
+       */
+      deleteUser: (id: number): Promise<void> =>
+        client.delete(`/api/users/${encodeURIComponent(String(id))}`).then(r => r.data),
 
     },
   };

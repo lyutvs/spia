@@ -1,6 +1,7 @@
 package io.spia.demo.controller
 
 import io.spia.demo.dto.CreateUserRequest
+import io.spia.demo.dto.UpdateUserRequest
 import io.spia.demo.dto.UserProfileDto
 import org.springframework.web.bind.annotation.*
 
@@ -28,5 +29,25 @@ class UserController {
             email = request.email,
             bio = null,
         )
+    }
+
+    /** Update an existing user. */
+    @PutMapping("/{id}")
+    fun updateUser(
+        @PathVariable id: Long,
+        @RequestBody request: UpdateUserRequest,
+    ): UserProfileDto {
+        return UserProfileDto(
+            id = id,
+            name = "Demo User",
+            email = request.email ?: "demo@example.com",
+            bio = request.bio,
+        )
+    }
+
+    /** Delete a user. */
+    @DeleteMapping("/{id}")
+    fun deleteUser(@PathVariable id: Long) {
+        // no-op stub
     }
 }
