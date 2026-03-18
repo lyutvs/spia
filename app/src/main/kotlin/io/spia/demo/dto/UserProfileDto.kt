@@ -5,4 +5,5 @@ data class UserProfileDto(
     val name: String,
     val email: String,
     val bio: String?,
+    val address: Address? = null,
 )

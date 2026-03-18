@@ -17,6 +17,11 @@ class UserController {
             name = "Demo User",
             email = "demo@example.com",
             bio = "Hello!",
+            address = io.spia.demo.dto.Address(
+                street = "1 Infinite Loop",
+                city = "Cupertino",
+                zipCode = "95014",
+            ),
         )
     }
 

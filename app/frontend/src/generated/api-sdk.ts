@@ -4,6 +4,12 @@ import type { AxiosInstance } from 'axios';
 
 /* ──────────── DTO Types ──────────── */
 
+export interface Address {
+  street: string;
+  city: string;
+  zipCode: string;
+}
+
 export interface CreateUserRequest {
   name: string;
   email: string;
@@ -19,6 +25,7 @@ export interface UserProfileDto {
   name: string;
   email: string;
   bio: string | null;
+  address: Address | null;
 }
 
 /* ──────────── API Functions ──────────── */
