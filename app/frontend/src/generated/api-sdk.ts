@@ -28,6 +28,19 @@ export interface UserProfileDto {
   address: Address | null;
 }
 
+export interface ApiResponse<D, E> {
+  data?: D;
+  error?: E;
+  success: boolean;
+}
+
+export interface Page<T> {
+  content: T[];
+  totalElements: number;
+  page: number;
+  size: number;
+}
+
 /* ──────────── API Functions ──────────── */
 
 export function createApi(client: AxiosInstance) {
@@ -56,6 +69,18 @@ export function createApi(client: AxiosInstance) {
        */
       deleteUser: (id: number): Promise<void> =>
         client.delete(`/api/users/${encodeURIComponent(String(id))}`).then(r => r.data),
+
+      /**
+       * List users with simple pagination metadata.
+       */
+      listUsers: (): Promise<Page<UserProfileDto>> =>
+        client.get(`/api/users/list`).then(r => r.data),
+
+      /**
+       * Return a user wrapped in a multi-parameter generic response envelope.
+       */
+      wrappedUser: (id: number): Promise<ApiResponse<UserProfileDto, string>> =>
+        client.get(`/api/users/${encodeURIComponent(String(id))}/wrapped`).then(r => r.data),
 
     },
   };
