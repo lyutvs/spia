@@ -58,14 +58,18 @@ class UserController {
         // no-op stub
     }
 
-    /** List users with simple pagination metadata. */
+    /** List users with pagination parameters. */
     @GetMapping("/list")
-    fun listUsers(): Page<UserProfileDto> {
+    fun listUsers(
+        @RequestParam(defaultValue = "0") page: Int,
+        @RequestParam(defaultValue = "20") size: Int,
+        @RequestParam(required = false) keyword: String?,
+    ): Page<UserProfileDto> {
         return Page(
             content = emptyList(),
             totalElements = 0L,
-            page = 0,
-            size = 20,
+            page = page,
+            size = size,
         )
     }
 

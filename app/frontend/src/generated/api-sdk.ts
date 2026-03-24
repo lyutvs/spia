@@ -71,10 +71,12 @@ export function createApi(client: AxiosInstance) {
         client.delete(`/api/users/${encodeURIComponent(String(id))}`).then(r => r.data),
 
       /**
-       * List users with simple pagination metadata.
+       * List users with pagination parameters.
+       * @param {number} [page=0] Server default: 0
+       * @param {number} [size=20] Server default: 20
        */
-      listUsers: (): Promise<Page<UserProfileDto>> =>
-        client.get(`/api/users/list`).then(r => r.data),
+      listUsers: (page?: number, size?: number, keyword?: string): Promise<Page<UserProfileDto>> =>
+        client.get(`/api/users/list`, { params: { ...(page !== undefined ? { page: page } : {}), ...(size !== undefined ? { size: size } : {}), ...(keyword !== undefined ? { keyword: keyword } : {}) } }).then(r => r.data),
 
       /**
        * Return a user wrapped in a multi-parameter generic response envelope.
