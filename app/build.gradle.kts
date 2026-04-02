@@ -26,3 +26,44 @@ spia {
     longType = "number"
     apiClient = "axios"
 }
+
+/* ───────────── Frontend typecheck gate ─────────────
+ * The generated SDK must compile under `tsc --strict`. We wire `npm install`
+ * and `npm run typecheck:strict` into the Gradle build so a fresh clone of
+ * the repo gets the full release gate just by running `./gradlew build`.
+ */
+tasks.register<Exec>("npmInstall") {
+    workingDir = file("frontend")
+    commandLine("npm", "install", "--no-audit", "--no-fund")
+    inputs.file("frontend/package.json")
+    inputs.file("frontend/package-lock.json").optional()
+    outputs.dir("frontend/node_modules")
+    onlyIf {
+        val nodeModules = file("frontend/node_modules")
+        if (!nodeModules.exists()) return@onlyIf true
+        val pkg = file("frontend/package.json")
+        pkg.lastModified() > nodeModules.lastModified()
+    }
+    doFirst {
+        val probe = providers.exec {
+            commandLine("sh", "-c", "command -v npm || true")
+            isIgnoreExitValue = true
+        }.standardOutput.asText.get().trim()
+        if (probe.isEmpty()) {
+            throw GradleException("npm not found in PATH. Install Node.js 18+ before building, or skip this task.")
+        }
+    }
+}
+
+tasks.register<Exec>("frontendTypecheck") {
+    workingDir = file("frontend")
+    commandLine("npm", "run", "typecheck:strict")
+    dependsOn("npmInstall", "kspKotlin")
+    inputs.dir("frontend/src")
+    inputs.file("frontend/tsconfig.json")
+    inputs.file("frontend/package.json")
+    outputs.file("frontend/.typecheck-ok")
+    doLast { file("frontend/.typecheck-ok").writeText(System.currentTimeMillis().toString()) }
+}
+
+tasks.named("build") { dependsOn("frontendTypecheck") }
