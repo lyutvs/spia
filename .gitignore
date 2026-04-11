@@ -43,3 +43,9 @@ bin/
 
 ### Workflow artifacts ###
 .workflow/
+
+### GPG / signing keys (never commit private material) ###
+*.gpg
+*.asc
+secring.gpg
+private.key
