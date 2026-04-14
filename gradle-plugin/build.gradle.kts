@@ -1,6 +1,9 @@
+import com.vanniktech.maven.publish.SonatypeHost
+
 plugins {
     `kotlin-dsl`
     `java-gradle-plugin`
+    id("com.vanniktech.maven.publish") version "0.30.0"
 }
 
 group = providers.gradleProperty("group").get()
@@ -20,6 +23,45 @@ gradlePlugin {
         create("spia") {
             id = "io.spia"
             implementationClass = "io.spia.gradle.SpiaPlugin"
+        }
+    }
+}
+
+mavenPublishing {
+    publishToMavenCentral(SonatypeHost.CENTRAL_PORTAL)
+
+    // Sign only when signing credentials are present, so publishToMavenLocal
+    // works for unsigned dry-runs (task 24).
+    if (project.hasProperty("signing.keyId") ||
+        System.getenv("ORG_GRADLE_PROJECT_signingInMemoryKey") != null) {
+        signAllPublications()
+    }
+
+    coordinates(project.group.toString(), "gradle-plugin", project.version.toString())
+
+    pom {
+        name.set("SPIA Gradle Plugin")
+        description.set("Kotlin Symbol Processing plugin that generates a type-safe TypeScript SDK from Spring Boot controllers.")
+        inceptionYear.set("2026")
+        url.set("https://github.com/spia/spia")
+        licenses {
+            license {
+                name.set("The Apache License, Version 2.0")
+                url.set("https://www.apache.org/licenses/LICENSE-2.0.txt")
+                distribution.set("https://www.apache.org/licenses/LICENSE-2.0.txt")
+            }
+        }
+        developers {
+            developer {
+                id.set("spia")
+                name.set("SPIA Contributors")
+                url.set("https://github.com/spia/spia")
+            }
+        }
+        scm {
+            connection.set("scm:git:https://github.com/spia/spia.git")
+            developerConnection.set("scm:git:ssh://git@github.com/spia/spia.git")
+            url.set("https://github.com/spia/spia")
         }
     }
 }
