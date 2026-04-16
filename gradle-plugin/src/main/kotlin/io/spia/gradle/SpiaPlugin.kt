@@ -2,6 +2,7 @@ package io.spia.gradle
 
 import org.gradle.api.Plugin
 import org.gradle.api.Project
+import java.util.Properties
 
 class SpiaPlugin : Plugin<Project> {
     override fun apply(project: Project) {
@@ -13,6 +14,24 @@ class SpiaPlugin : Plugin<Project> {
         extension.enumStyle.convention("union")
         extension.longType.convention("number")
         extension.apiClient.convention("axios")
+
+        // Attach the matching processor artifact to the consumer's `ksp` configuration.
+        // Consumers apply `id("io.spia")` and the processor is wired automatically —
+        // unless they've already declared a processor dependency themselves (e.g.,
+        // the in-repo demo which uses `ksp(project(":processor"))`).
+        val coords = readPluginCoordinates()
+        if (coords != null) {
+            val (group, version) = coords
+            project.afterEvaluate {
+                val kspConf = project.configurations.findByName("ksp") ?: return@afterEvaluate
+                val alreadyDeclared = kspConf.allDependencies.any {
+                    it.name == "processor" && (it.group == group || it.group == null)
+                }
+                if (!alreadyDeclared) {
+                    project.dependencies.add("ksp", "$group:processor:$version")
+                }
+            }
+        }
 
         project.afterEvaluate {
             val kspExtension = project.extensions.findByName("ksp")
@@ -32,6 +51,17 @@ class SpiaPlugin : Plugin<Project> {
             ksp.arg("spia.enumStyle", extension.enumStyle.get())
             ksp.arg("spia.longType", extension.longType.get())
             ksp.arg("spia.apiClient", extension.apiClient.get())
+        }
+    }
+
+    private fun readPluginCoordinates(): Pair<String, String>? {
+        val stream = SpiaPlugin::class.java.classLoader
+            .getResourceAsStream("spia-version.properties") ?: return null
+        return stream.use { input ->
+            val props = Properties().apply { load(input) }
+            val group = props.getProperty("group") ?: return@use null
+            val version = props.getProperty("version") ?: return@use null
+            group to version
         }
     }
 }

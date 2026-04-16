@@ -1,5 +1,8 @@
+import com.vanniktech.maven.publish.SonatypeHost
+
 plugins {
     kotlin("jvm")
+    id("com.vanniktech.maven.publish") version "0.30.0"
 }
 
 repositories {
@@ -22,4 +25,41 @@ kotlin {
 
 tasks.test {
     useJUnitPlatform()
+}
+
+mavenPublishing {
+    publishToMavenCentral(SonatypeHost.CENTRAL_PORTAL)
+
+    if (project.hasProperty("signing.keyId") ||
+        System.getenv("ORG_GRADLE_PROJECT_signingInMemoryKey") != null) {
+        signAllPublications()
+    }
+
+    coordinates(project.group.toString(), "processor", project.version.toString())
+
+    pom {
+        name.set("SPIA KSP Processor")
+        description.set("KSP SymbolProcessor that extracts Spring Boot controller metadata and generates TypeScript interfaces and API client.")
+        inceptionYear.set("2026")
+        url.set("https://github.com/spia/spia")
+        licenses {
+            license {
+                name.set("The Apache License, Version 2.0")
+                url.set("https://www.apache.org/licenses/LICENSE-2.0.txt")
+                distribution.set("https://www.apache.org/licenses/LICENSE-2.0.txt")
+            }
+        }
+        developers {
+            developer {
+                id.set("spia")
+                name.set("SPIA Contributors")
+                url.set("https://github.com/spia/spia")
+            }
+        }
+        scm {
+            connection.set("scm:git:https://github.com/spia/spia.git")
+            developerConnection.set("scm:git:ssh://git@github.com/spia/spia.git")
+            url.set("https://github.com/spia/spia")
+        }
+    }
 }

@@ -13,6 +13,9 @@ repositories {
 
 dependencies {
     implementation("org.springframework.boot:spring-boot-starter-web")
+    // Local multi-project build uses the project reference directly — the io.spia
+    // plugin's auto-add detects this and skips injecting the Maven coord.
+    // External consumers don't need this line; the plugin adds the processor for them.
     ksp(project(":processor"))
 }
 

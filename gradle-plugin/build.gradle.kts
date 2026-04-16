@@ -27,6 +27,24 @@ gradlePlugin {
     }
 }
 
+// Expose the plugin's own version to runtime code so SpiaPlugin can add the matching
+// processor artifact to the `ksp` configuration without the consumer declaring it.
+val generatedResources = layout.buildDirectory.dir("generated/spia-resources")
+tasks.register("generateVersionProperties") {
+    inputs.property("version", project.version)
+    inputs.property("group", project.group)
+    outputs.dir(generatedResources)
+    doLast {
+        val out = generatedResources.get().file("spia-version.properties").asFile
+        out.parentFile.mkdirs()
+        out.writeText("group=${project.group}\nversion=${project.version}\n")
+    }
+}
+sourceSets.named("main") {
+    resources.srcDir(generatedResources)
+}
+tasks.named("processResources") { dependsOn("generateVersionProperties") }
+
 mavenPublishing {
     publishToMavenCentral(SonatypeHost.CENTRAL_PORTAL)
 
