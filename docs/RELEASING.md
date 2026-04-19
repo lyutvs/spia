@@ -85,9 +85,22 @@ See the **GPG** section below (task 21).
 
 ## 4. mavenLocal dry-run
 
-See `docs/samples/mavenlocal-consumer/` (task 24). Every release MUST be
-validated by building this consumer against the local artifact before
-pushing to Central.
+Before shipping, validate the release bundle against a real, separate Gradle
+build that resolves the plugin through `mavenLocal()` rather than a project
+reference. The sample at `docs/samples/mavenlocal-consumer/` is intentionally
+**not** included in the root `settings.gradle.kts` so that it exercises the
+exact plugin resolution path an external consumer takes.
+
+```bash
+# Publish both artifacts locally:
+./gradlew :gradle-plugin:publishToMavenLocal :processor:publishToMavenLocal
+
+# Build the sample consumer against mavenLocal:
+./gradlew -p docs/samples/mavenlocal-consumer clean build
+```
+
+A green build + a populated `docs/samples/mavenlocal-consumer/frontend/api.ts`
+means the release bundle is self-contained and ready to upload to Central.
 
 ## 5. Actual release
 

@@ -19,11 +19,16 @@ class SpiaPlugin : Plugin<Project> {
         // Consumers apply `id("io.spia")` and the processor is wired automatically —
         // unless they've already declared a processor dependency themselves (e.g.,
         // the in-repo demo which uses `ksp(project(":processor"))`).
+        //
+        // Hooked via pluginManager.withPlugin so the injection runs as soon as the
+        // KSP plugin creates its `ksp` configuration, regardless of `plugins {}`
+        // declaration order.
         val coords = readPluginCoordinates()
         if (coords != null) {
             val (group, version) = coords
-            project.afterEvaluate {
-                val kspConf = project.configurations.findByName("ksp") ?: return@afterEvaluate
+            project.pluginManager.withPlugin("com.google.devtools.ksp") {
+                val kspConf = project.configurations.findByName("ksp")
+                    ?: project.configurations.create("ksp")
                 val alreadyDeclared = kspConf.allDependencies.any {
                     it.name == "processor" && (it.group == group || it.group == null)
                 }
