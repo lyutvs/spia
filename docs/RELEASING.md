@@ -53,7 +53,11 @@ it:
 
 | Date (UTC) | Verified group | Verifier |
 |------------|----------------|----------|
-| _TBD_ | io.github.lyutvs Verified | _TBD_ |
+| 2026-04-22 | io.github.lyutvs Verified | lyutvs (GitHub username challenge repo `wjfckl2wil`) |
+
+**Current status:** `io.github.lyutvs` Verified on 2026-04-22 by GitHub username
+challenge (`github.com/lyutvs/wjfckl2wil`, deletable once Sonatype records the
+verification).
 
 ## 2. Credentials
 
