@@ -21,7 +21,7 @@ dependencies {
 gradlePlugin {
     plugins {
         create("spia") {
-            id = "io.spia"
+            id = "io.github.lyutvs.spia"
             implementationClass = "io.spia.gradle.SpiaPlugin"
         }
     }
@@ -44,6 +44,11 @@ sourceSets.named("main") {
     resources.srcDir(generatedResources)
 }
 tasks.named("processResources") { dependsOn("generateVersionProperties") }
+// sourcesJar is registered lazily by Vanniktech; it picks up resources.srcDirs, so
+// it also needs to wait for the generator.
+tasks.matching { it.name == "sourcesJar" }.configureEach {
+    dependsOn("generateVersionProperties")
+}
 
 mavenPublishing {
     publishToMavenCentral(SonatypeHost.CENTRAL_PORTAL)
@@ -61,7 +66,7 @@ mavenPublishing {
         name.set("SPIA Gradle Plugin")
         description.set("Kotlin Symbol Processing plugin that generates a type-safe TypeScript SDK from Spring Boot controllers.")
         inceptionYear.set("2026")
-        url.set("https://github.com/spia/spia")
+        url.set("https://github.com/lyutvs/spia")
         licenses {
             license {
                 name.set("The Apache License, Version 2.0")
@@ -73,13 +78,13 @@ mavenPublishing {
             developer {
                 id.set("spia")
                 name.set("SPIA Contributors")
-                url.set("https://github.com/spia/spia")
+                url.set("https://github.com/lyutvs/spia")
             }
         }
         scm {
-            connection.set("scm:git:https://github.com/spia/spia.git")
-            developerConnection.set("scm:git:ssh://git@github.com/spia/spia.git")
-            url.set("https://github.com/spia/spia")
+            connection.set("scm:git:https://github.com/lyutvs/spia.git")
+            developerConnection.set("scm:git:ssh://git@github.com/lyutvs/spia.git")
+            url.set("https://github.com/lyutvs/spia")
         }
     }
 }

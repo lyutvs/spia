@@ -4,7 +4,7 @@ plugins {
     kotlin("jvm") version "2.1.20"
     kotlin("plugin.spring") version "2.1.20"
     id("com.google.devtools.ksp") version "2.1.20-1.0.31"
-    id("io.spia") version "0.1.0"
+    id("io.github.lyutvs.spia") version "0.1.0"
 }
 
 group = "sample"

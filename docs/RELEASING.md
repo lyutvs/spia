@@ -1,7 +1,7 @@
 # Releasing SPIA
 
 This document walks through everything needed to cut a release of
-`io.spia:gradle-plugin` and `io.spia:processor` to Maven Central.
+`io.github.lyutvs:gradle-plugin` and `io.github.lyutvs:processor` to Maven Central.
 
 The Gradle build config (tasks 22 & 23) is version-independent — the release
 procedure below can be re-used for every subsequent version without
@@ -12,7 +12,7 @@ re-configuring the build.
 | Item | Who | Notes |
 |------|-----|-------|
 | Sonatype Central Portal account | You | https://central.sonatype.com/account |
-| `io.spia` namespace verified | You | Via GitHub or DNS TXT — see below |
+| `io.github.lyutvs` namespace verified | You | Standard GitHub verification — see below |
 | GPG key pair | You | See GPG section below |
 | Node.js 18+, JDK 21, git | You | Already needed for day-to-day builds |
 
@@ -21,50 +21,39 @@ re-configuring the build.
 ## 1. Sonatype Central Portal — namespace verification
 
 Maven Central (via Sonatype Central Portal) requires you to prove ownership of
-the group-ID you want to publish under. We've chosen `io.spia` as the group.
+the group-ID you want to publish under. We publish under
+**`io.github.lyutvs`** — the `io.github.<GitHub-user>` form is the least-
+friction verification route because it's tied to an existing GitHub account
+without needing a separate domain.
 
-### Option A — GitHub verification (recommended)
-
-This works if you have a GitHub organisation or user named `spia`, or you can
-satisfy the challenge with a verification repository.
+### Procedure (GitHub username verification)
 
 1. Log into https://central.sonatype.com and navigate to
    **Namespaces → Add Namespace**.
-2. Enter `io.github.<username>` to use GitHub namespace, OR enter `io.spia`
-   and choose GitHub verification.
-3. Portal returns a verification token and instructs you to create a public
-   repo on GitHub whose name matches that token.
-4. Create the repo (can be empty), wait ~1 minute, click **Verify**.
+2. Enter `io.github.lyutvs`. Sonatype recognises the `io.github.` prefix and
+   matches it against the GitHub account you signed up with.
+3. If the portal asks for a challenge token, it will instruct you to create a
+   public repo on `github.com/lyutvs` whose name is the token. Do that (the
+   repo can be empty), then click **Verify** — usually near-instant.
 
-### Option B — DNS TXT record
+### Why not `io.spia`?
 
-Use this if you own the `spia.io` domain:
-
-1. Same **Add Namespace** flow, enter `io.spia`, choose DNS verification.
-2. Portal returns a token. Add a TXT record at `_sonatype.spia.io` with the
-   token as its value.
-3. Wait for DNS propagation, click **Verify**.
-
-### Fallback — `io.github.<username>`
-
-If neither verification route is accessible right now, fall back to
-`io.github.<user>` and update:
-
-- `gradle.properties` → `group=io.github.<user>`
-- `gradle-plugin/gradle.properties` → `group=io.github.<user>`
-- `gradle-plugin/build.gradle.kts` → the `gradlePlugin` block's plugin id
-  **may stay `io.spia`** — the plugin id is not tied to the group coordinate.
-  Only the Maven coordinate changes.
-- Regenerate the SDK to ensure no hard-coded group reference elsewhere.
+Sonatype requires `io.<name>` groups to be backed by a domain you own
+(`spia.io` in this case). Without the domain, DNS TXT verification is
+impossible. The `io.github.<user>` fallback doesn't require a domain and is
+fully supported by Central Portal, the Vanniktech publish plugin, and
+Maven Central itself. If `spia.io` or a `spia` GitHub organisation is
+acquired later, a future v0.2+ release can switch the coordinate (keeping
+v0.1.0 published under the current group for continuity).
 
 ### After verification
 
-Record verification date + chosen group in the table below so the pre-release
-check in task 27 can grep for it:
+Record the verification date so the pre-release gate in task 27 can confirm
+it:
 
 | Date (UTC) | Verified group | Verifier |
 |------------|----------------|----------|
-| _TBD_ | io.spia Verified | _TBD_ |
+| _TBD_ | io.github.lyutvs Verified | _TBD_ |
 
 ## 2. Credentials
 

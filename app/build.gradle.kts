@@ -4,7 +4,7 @@ plugins {
     id("com.google.devtools.ksp")
     id("org.springframework.boot")
     id("io.spring.dependency-management")
-    id("io.spia")
+    id("io.github.lyutvs.spia")
 }
 
 repositories {

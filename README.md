@@ -22,7 +22,7 @@ frontend build immediately — catching API drift at compile time.
 // build.gradle.kts (consumer)
 plugins {
     id("com.google.devtools.ksp") version "2.1.20-1.0.31"
-    id("io.spia") version "0.1.0"
+    id("io.github.lyutvs.spia") version "0.1.0"
 }
 
 spia {
@@ -33,7 +33,7 @@ spia {
 }
 ```
 
-The plugin resolves the matching `io.spia:processor` artifact for you — you
+The plugin resolves the matching `io.github.lyutvs:processor` artifact for you — you
 don't need a separate `ksp(...)` declaration unless you're doing something
 unusual.
 

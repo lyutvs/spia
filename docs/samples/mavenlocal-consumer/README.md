@@ -7,7 +7,7 @@ plugin marker coordinates, sources/javadoc jar packaging, signing order, etc.
 
 Intentionally NOT included in the root `settings.gradle.kts`. It exists as
 its own Gradle project so it exercises the same code path as an external
-user who adds `id("io.spia") version "x.y.z"` to their own build.
+user who adds `id("io.github.lyutvs.spia") version "x.y.z"` to their own build.
 
 ## Procedure
 
@@ -32,7 +32,7 @@ export, the release bundle is ready to upload to Maven Central (per
 
 - The main build uses `ksp(project(":processor"))` — direct project
   dependency, no Maven resolution involved.
-- This sample intentionally resolves `io.spia:processor` via the plugin's
+- This sample intentionally resolves `io.github.lyutvs:processor` via the plugin's
   auto-add path, so a broken POM or missing artifact surfaces here rather
   than at the Central Portal staging check (which is much slower to iterate
   against).

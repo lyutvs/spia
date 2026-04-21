@@ -11,9 +11,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- Initial public release as Maven Central artifacts (`io.spia:gradle-plugin`,
-  `io.spia:processor`). The plugin auto-registers the processor on the
-  consumer's `ksp` configuration — consumers only need the `plugins { }` block.
+- Initial public release as Maven Central artifacts
+  (`io.github.lyutvs:gradle-plugin`, `io.github.lyutvs:processor`). The plugin
+  id is `io.github.lyutvs.spia` — the plugin auto-registers the processor on
+  the consumer's `ksp` configuration, so consumers only need the
+  `plugins { id("io.github.lyutvs.spia") version "..." }` block.
 - Spring Boot `@RestController` scanning via KSP with no Spring dependency
   on the processor (annotation detection by fully-qualified name).
 - HTTP method support: `@GetMapping`, `@PostMapping`, `@PutMapping`,
@@ -79,5 +81,5 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `@JsonProperty` / `@JsonAlias` name overrides are ignored.
 - Multipart / file upload endpoints are skipped.
 
-[Unreleased]: https://github.com/spia/spia/compare/v0.1.0...HEAD
-[0.1.0]: https://github.com/spia/spia/releases/tag/v0.1.0
+[Unreleased]: https://github.com/lyutvs/spia/compare/v0.1.0...HEAD
+[0.1.0]: https://github.com/lyutvs/spia/releases/tag/v0.1.0

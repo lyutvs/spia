@@ -41,7 +41,7 @@ mavenPublishing {
         name.set("SPIA KSP Processor")
         description.set("KSP SymbolProcessor that extracts Spring Boot controller metadata and generates TypeScript interfaces and API client.")
         inceptionYear.set("2026")
-        url.set("https://github.com/spia/spia")
+        url.set("https://github.com/lyutvs/spia")
         licenses {
             license {
                 name.set("The Apache License, Version 2.0")
@@ -53,13 +53,13 @@ mavenPublishing {
             developer {
                 id.set("spia")
                 name.set("SPIA Contributors")
-                url.set("https://github.com/spia/spia")
+                url.set("https://github.com/lyutvs/spia")
             }
         }
         scm {
-            connection.set("scm:git:https://github.com/spia/spia.git")
-            developerConnection.set("scm:git:ssh://git@github.com/spia/spia.git")
-            url.set("https://github.com/spia/spia")
+            connection.set("scm:git:https://github.com/lyutvs/spia.git")
+            developerConnection.set("scm:git:ssh://git@github.com/lyutvs/spia.git")
+            url.set("https://github.com/lyutvs/spia")
         }
     }
 }
