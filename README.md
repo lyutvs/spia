@@ -7,260 +7,199 @@
 
 # SPIA
 
-> Analyze your Spring Boot APIs at compile time and  
-> automatically generate a **type-safe TypeScript SDK** ready to use on the frontend.
+> Scan your Spring Boot controllers at compile time and automatically
+> generate a **type-safe TypeScript SDK** ready to drop into your frontend.
 
-**SPIA** is inspired by [Nestia](https://nestia.io/) from the NestJS ecosystem.  
-When your backend code changes, your frontend gets an immediate compile error — catching API bugs **before they ever reach production**.
+SPIA is a KSP symbol processor + Gradle plugin. It reads standard Spring Web
+annotations on your controllers and DTOs and emits a single `.ts` file
+containing interfaces, enums, and a `createApi()` function that wraps your
+endpoints. When your backend types change, the regenerated SDK breaks the
+frontend build immediately — catching API drift at compile time.
 
----
-
-## ✨ Why SPIA?
-
-| The Old Way | With SPIA |
-|---|---|
-| Manually sync frontend when APIs change | SDK **auto-updates** on every build |
-| Type mismatch bugs discovered at runtime | Caught instantly at **compile time** |
-| Repetitive `axios`/`fetch` boilerplate | One-liner function calls from the generated SDK |
-| "What was the type of that field again?" | **The code is the API spec** |
-
----
-
-## 🚀 Quick Start
-
-### 1. Add the Plugin (Gradle)
+## Install
 
 ```kotlin
-// build.gradle.kts
+// build.gradle.kts (consumer)
 plugins {
-    id("com.google.devtools.ksp") version "2.1.0-1.0.29"
+    id("com.google.devtools.ksp") version "2.1.20-1.0.31"
     id("io.spia") version "0.1.0"
 }
 
-dependencies {
-    ksp("io.spia:spia-processor:0.1.0")
-}
-
 spia {
-    outputPath = "../frontend/src/generated/api-sdk.ts"
+    outputPath = "src/main/frontend/generated/api-sdk.ts"
+    apiClient  = "axios"      // "axios" (default) | "fetch"
+    enumStyle  = "union"      // "union" (default) | "enum"
+    longType   = "number"     // "number" (default) | "string" | "bigint"
 }
 ```
 
-### 2. Write Your Spring Boot Code as Usual
+The plugin resolves the matching `io.spia:processor` artifact for you — you
+don't need a separate `ksp(...)` declaration unless you're doing something
+unusual.
+
+## What's supported in v0.1.0
+
+| Pattern | Status | Notes |
+|---|:---:|---|
+| `@RestController` + `@RequestMapping` | ✅ | Base path extracted |
+| `@GetMapping` / `@PostMapping` / `@PutMapping` / `@DeleteMapping` / `@PatchMapping` | ✅ | All 5 HTTP method annotations |
+| `@PathVariable` | ✅ | Rendered with `encodeURIComponent` |
+| `@RequestBody` | ✅ | POST/PUT/PATCH body typed against the DTO |
+| `@RequestParam` | ✅ | `required=false` and `defaultValue` map to optional params + JSDoc `@default` |
+| `@RequestHeader` | ✅ | Typed header parameters |
+| Primitives, `String`, `Boolean`, `Int`, `Long`, `Double`, … | ✅ | `Long` configurable (`number` / `string` / `bigint`) |
+| `List<T>`, `Set<T>`, `Collection<T>` → `T[]` | ✅ | |
+| `Map<K, V>` → `{ [key: K]: V }` | ✅ | |
+| Nullability (`T?`) | ✅ | `T \| null` in output |
+| Nested DTOs (2+ levels) | ✅ | Dedup by fully-qualified name; same-simple-name classes in different packages get package-prefixed |
+| Single-parameter generics (`Page<T>`) | ✅ | Emitted once as `interface Page<T>`; usage sites fill args |
+| Multi-parameter generics (`ApiResponse<Data, Error>`) | ✅ | |
+| `ResponseEntity<T>` | ✅ | Unwrapped; `T` becomes the response type |
+| Kotlin `enum class` | ✅ | Rendered as union or `enum`, configurable |
+| `java.time.*`, `java.util.UUID`, `java.util.Date` | ✅ | Mapped to `string` |
+| axios template | ✅ | Default; emits `client.get/post/...` calls |
+| fetch template | ✅ | `URLSearchParams`-backed query building, `encodeURIComponent` on paths |
+
+## Not supported in v0.1.0 (known exclusions)
+
+These are intentionally out of scope for the initial release. PRs welcome
+after v0.1.0.
+
+| Pattern | Workaround |
+|---|---|
+| Bean Validation (`@Valid`, `@NotNull`, `@Size`, …) | Use TypeScript-side validation; Spring validates at runtime |
+| Spring Security (`@PreAuthorize`, auth headers) | Handle auth in the axios instance passed to `createApi` |
+| `Pageable` / `Page` (Spring Data) as a first-class type | Define a plain DTO (see the `Page<T>` example below) |
+| Kotlin `sealed class` → TS discriminated union | Flatten to a single nullable-field DTO |
+| `@JsonProperty` / `@JsonAlias` name overrides | Use matching Kotlin property names |
+| `ProblemDetail` / RFC 9457 error bodies | Wrap in your own DTO |
+| Multipart / file upload endpoints | Call the endpoint directly; SDK skips these |
+
+## Example — what the SDK looks like
+
+A controller like this:
 
 ```kotlin
-@RestController
-@RequestMapping("/api/users")
-class UserController(private val userService: UserService) {
-
-    /** Retrieve a user profile. */
-    @GetMapping("/{id}")
-    fun getUserProfile(@PathVariable id: Long): UserProfileDto =
-        userService.getProfile(id)
-
-    /** Create a new user. */
-    @PostMapping
-    fun createUser(@RequestBody request: CreateUserRequest): UserProfileDto =
-        userService.create(request)
-}
+data class Address(val street: String, val city: String, val zipCode: String)
 
 data class UserProfileDto(
     val id: Long,
     val name: String,
     val email: String,
-    val bio: String?,       // nullable → string | null in TypeScript
+    val bio: String?,
+    val address: Address? = null,
 )
 
-data class CreateUserRequest(
-    val name: String,
-    val email: String,
+data class Page<T>(
+    val content: List<T>,
+    val totalElements: Long,
+    val page: Int,
+    val size: Int,
 )
+
+@RestController
+@RequestMapping("/api/users")
+class UserController {
+    @GetMapping("/{id}")
+    fun getUserProfile(@PathVariable id: Long): UserProfileDto = ...
+
+    @GetMapping("/list")
+    fun listUsers(
+        @RequestParam(defaultValue = "0") page: Int,
+        @RequestParam(defaultValue = "20") size: Int,
+        @RequestParam(required = false) keyword: String?,
+    ): Page<UserProfileDto> = ...
+}
 ```
 
-### 3. Build
-
-```bash
-./gradlew build
-```
-
-An `api-sdk.ts` file is automatically generated in your frontend project.
-
-### 4. Use It on the Frontend
+produces (excerpt):
 
 ```typescript
-import { createApi, UserProfileDto } from './generated/api-sdk';
-import axios from 'axios';
+// Auto-generated by SPIA — do not edit manually.
+import type { AxiosInstance } from 'axios';
 
-const api = createApi(axios.create({ baseURL: 'http://localhost:8080' }));
+export interface Address {
+  street: string;
+  city: string;
+  zipCode: string;
+}
 
-// ✅ Full autocomplete, type checking, and JSDoc documentation
-const user: UserProfileDto = await api.users.getUserProfile(123);
-console.log(user.name);  // string
-console.log(user.bio);   // string | null
-```
-
----
-
-## 📦 Generated SDK Example
-
-The Spring Boot code above produces the following TypeScript file:
-
-```typescript
-// 🔄 Auto-generated by SPIA — do not edit manually.
-
-/* ──────────── DTO Types ──────────── */
-
-/** Retrieve a user profile. */
 export interface UserProfileDto {
   id: number;
   name: string;
   email: string;
   bio: string | null;
+  address: Address | null;
 }
 
-export interface CreateUserRequest {
-  name: string;
-  email: string;
+export interface Page<T> {
+  content: T[];
+  totalElements: number;
+  page: number;
+  size: number;
 }
-
-/* ──────────── API Functions ──────────── */
 
 export function createApi(client: AxiosInstance) {
   return {
-    users: {
-      /** Retrieve a user profile. */
+    user: {
       getUserProfile: (id: number): Promise<UserProfileDto> =>
-        client.get(`/api/users/${id}`).then(r => r.data),
+        client.get(`/api/users/${encodeURIComponent(String(id))}`).then(r => r.data),
 
-      /** Create a new user. */
-      createUser: (request: CreateUserRequest): Promise<UserProfileDto> =>
-        client.post(`/api/users`, request).then(r => r.data),
+      /**
+       * @param {number} [page=0] Server default: 0
+       * @param {number} [size=20] Server default: 20
+       */
+      listUsers: (page?: number, size?: number, keyword?: string): Promise<Page<UserProfileDto>> =>
+        client.get(`/api/users/list`, {
+          params: {
+            ...(page !== undefined ? { page } : {}),
+            ...(size !== undefined ? { size } : {}),
+            ...(keyword !== undefined ? { keyword } : {}),
+          },
+        }).then(r => r.data),
     },
   };
 }
 ```
 
----
+Use from the frontend:
 
-## 🔧 Configuration
+```typescript
+import axios from 'axios';
+import { createApi, type UserProfileDto } from './generated/api-sdk';
 
-Customize the SDK generation behavior in your build script:
-
-```kotlin
-spia {
-    outputPath = "../frontend/src/generated/api-sdk.ts"  // (required) SDK output path
-    enumStyle = "union"    // "union" → 'A' | 'B' | "enum" → enum { A, B }
-    longType = "number"    // "number" | "string" | "bigint"
-    apiClient = "axios"    // "axios" | "fetch"
-}
+const api = createApi(axios.create({ baseURL: 'http://localhost:8080' }));
+const user: UserProfileDto = await api.user.getUserProfile(1);
 ```
 
-| Option | Description | Default |
-|---|---|---|
-| `outputPath` | Output path for the generated SDK file **(required)** | — |
-| `enumStyle` | Enum conversion style | `union` |
-| `longType` | Java/Kotlin `Long` type mapping | `number` |
-| `apiClient` | HTTP client template | `axios` |
+See `app/` for a full working demo (Spring Boot server + TypeScript
+consumer), and `app/frontend/src/main.ts` for a type-exercising example that
+compiles under `tsc --strict`.
 
----
+## Configuration options
 
-## 🔀 Type Conversion Rules
+The `spia { ... }` DSL accepts:
 
-### Primitive Types
+| Option | Type | Default | Meaning |
+|---|---|---|---|
+| `outputPath` | `String` | `"build/generated/spia/api-sdk.ts"` | Destination of the generated SDK. Resolved relative to the project dir. |
+| `apiClient` | `"axios"` \| `"fetch"` | `"axios"` | Which HTTP client to emit calls against. |
+| `enumStyle` | `"union"` \| `"enum"` | `"union"` | `"union"` emits `type Color = 'RED' \| 'GREEN';` ; `"enum"` emits a TS `enum`. |
+| `longType` | `"number"` \| `"string"` \| `"bigint"` | `"number"` | How Kotlin `Long` is surfaced in TS. |
 
-| Java / Kotlin | TypeScript |
-|---|---|
-| `int`, `Integer`, `Long`, `Double`, `Float`, etc. | `number` |
-| `String` | `string` |
-| `boolean`, `Boolean` | `boolean` |
-| `Long` | `number` (default) / `string` / `bigint` (configurable) |
+## Development
 
-### Complex Types
+Requirements: JDK 21, Node.js 18+, Gradle wrapper (bundled).
 
-| Java / Kotlin | TypeScript |
-|---|---|
-| `List<T>`, `Set<T>` | `T[]` |
-| `Map<K, V>` | `{ [key: string]: V }` |
-| `T?` (Kotlin nullable) | `T \| null` |
-| `@Nullable T` (Java) | `T \| null` |
-| `ResponseEntity<T>` | `T` (unwrapped) |
-| `Page<T>` | `Page<T>` (pagination interface) |
-| `java.time.*`, `Date` | `string` (ISO 8601) |
-| `enum` | `'A' \| 'B' \| 'C'` (default) or `enum` |
+```bash
+./gradlew build                          # full build incl. tsc --strict gate
+./gradlew :app:bootRun                   # start the demo server
+cd app/frontend && npm run integration   # hit the running server via the SDK
+```
 
----
+See `docs/RELEASING.md` for the Maven Central release procedure and
+`docs/samples/mavenlocal-consumer/` for the dry-run consumer sample.
 
-## 📋 Supported Scope (v1.0)
+## License
 
-### Annotations
-
-**Controller:** `@RestController`, `@RequestMapping`  
-**HTTP Methods:** `@GetMapping`, `@PostMapping`, `@PutMapping`, `@DeleteMapping`, `@PatchMapping`  
-**Parameters:** `@PathVariable`, `@RequestParam`, `@RequestBody`, `@RequestHeader`
-
-### DTO Formats
-
-- Java: POJO, Record
-- Kotlin: data class
-- Enum (Java / Kotlin)
-
----
-
-## 🛠 Tech Stack
-
-| Area | Technology | Why |
-|---|---|---|
-| Language | **Kotlin** | Supports both Java & Kotlin projects with high productivity |
-| Code Analysis | **KSP** (Kotlin Symbol Processing) | Faster builds than kapt, full understanding of Kotlin nullability |
-| Code Generation | **KotlinPoet**-based | Type-safe programmatic code generation |
-| Build Integration | **Gradle Plugin** / **Maven Plugin** | Native integration with major build systems |
-
----
-
-## 🗺 Roadmap
-
-### v0.1 — MVP
-- Core analysis engine powered by KSP
-- Support for key annotations: `@GetMapping`, `@PostMapping`, `@RequestBody`, etc.
-- Basic DTO conversion (data class, Record, POJO)
-- Gradle integration
-
-### v0.2 ~ v0.4 — Feature Expansion
-- Full RESTful annotation support
-- `@RequestParam`, collections, Enum, and Nullability conversion
-- JavaDoc / KDoc → JSDoc conversion
-- Maven integration
-- Configuration options
-
-### v1.0 — Stable Release
-- Stabilization and performance optimization
-- Official documentation and example projects
-
-### v2.0+ — Future Plans
-- **WebFlux support:** `Mono<T>` → `Promise<T>`, `Flux<T>` → `Promise<T[]>` / RxJS `Observable`
-- **SSE (Server-Sent Events):** Type-safe streaming
-- **WebSocket support:** `@MessageMapping` (STOMP) analysis with typed WebSocket client wrappers
-
----
-
-## 🤝 Contributing
-
-Contributions are welcome! Whether it's a bug report, feature request, or pull request — we'd love your help.
-
-1. Fork this repository
-2. Create a feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit your changes (`git commit -m 'feat: add amazing feature'`)
-4. Push to the branch (`git push origin feature/amazing-feature`)
-5. Open a Pull Request
-
----
-
-## 📄 License
-
-This project is licensed under the [Apache License 2.0](LICENSE).
-
----
-
-<p align="center">
-  <sub>Inspired by <a href="https://nestia.io/">Nestia</a> — bringing the same DX magic to the Spring ecosystem.</sub>
-</p>
+Apache 2.0 — see [LICENSE](LICENSE).
