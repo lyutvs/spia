@@ -1,0 +1,23 @@
+name: Feature request
+description: Suggest an enhancement or new capability
+labels: [enhancement]
+body:
+  - type: textarea
+    id: use-case
+    attributes:
+      label: Use case
+      description: What are you trying to do? Why do you need this? What's currently blocking you?
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposed-solution
+    attributes:
+      label: Proposed solution
+      description: If you have an idea for how to implement this, describe it here.
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: Have you found other ways to solve this? What are their trade-offs?
