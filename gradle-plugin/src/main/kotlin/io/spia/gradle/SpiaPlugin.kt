@@ -13,7 +13,7 @@ class SpiaPlugin : Plugin<Project> {
 
         extension.enumStyle.convention("union")
         extension.longType.convention("number")
-        extension.apiClient.convention("axios")
+        extension.apiClient.convention("fetch")
 
         // Attach the matching processor artifact to the consumer's `ksp` configuration.
         // Consumers apply `id("io.spia")` and the processor is wired automatically —
