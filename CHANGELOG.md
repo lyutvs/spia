@@ -7,6 +7,34 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **Breaking** — `spia` plugin default `apiClient` flipped from `"axios"` to
+  `"fetch"`. Consumers who do not explicitly pin `apiClient` in their
+  `spia { }` block will receive a fetch-based SDK whose `createApi`
+  signature is `createApi(baseUrl: string)` instead of
+  `createApi(client: AxiosInstance)`. To preserve the previous behavior,
+  add `apiClient = "axios"` to your `spia { }` configuration.
+- Fetch template now emits `if (!res.ok) throw new Error(…)` before every
+  response parse, bringing HTTP error semantics in line with axios (which
+  throws on 4xx/5xx automatically). Previously, 4xx/5xx responses were
+  silently passed to `res.json()`.
+
+### Added
+
+- README "Quick Start" section demonstrating the 3-line fetch-based setup.
+- `ProcessorSmokeTest`: new `fetch emits createApi(baseUrl: string) …` case
+  covering the fetch branch. Existing tests now pin `apiClient = "axios"`
+  explicitly so they are insulated from default-flip behavior changes.
+
+### Migration
+
+1. Run a build; if the generated `api-sdk.ts` now shows
+   `createApi(baseUrl: string)` where you previously had
+   `createApi(client: AxiosInstance)`, the default flip affected you.
+2. Either migrate consumer call sites to the 3-line fetch form, or pin
+   `apiClient = "axios"` to restore the previous shape.
+
 ## [0.2.0] - 2026-04-23
 
 ### Added
