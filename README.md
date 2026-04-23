@@ -18,6 +18,52 @@ containing interfaces, enums, and a `createApi()` function that wraps your
 endpoints. When your backend types change, the regenerated SDK breaks the
 frontend build immediately — catching API drift at compile time.
 
+## Why SPIA?
+
+Spring Boot + TypeScript teams usually keep API types in sync one of three
+ways: copy-pasting DTOs by hand, running an OpenAPI pipeline, or giving up
+and typing `any`. SPIA is a fourth option — the compiler does it for you.
+Write a `@RestController`, run `./gradlew build`, and your frontend gets a
+single typed `.ts` file. Change the DTO, and the frontend build breaks
+first. No drift, no runtime spec, no template fight.
+
+### Depending on where you're coming from
+
+| Coming from | What SPIA replaces | Core win |
+|---|---|---|
+| **Hand-written types** | Manually mirroring DTOs in `*.ts` | DTO changes surface as a frontend `tsc` error, not a production 500. Zero boilerplate per endpoint. |
+| **`springdoc-openapi` + `openapi-typescript` / `openapi-generator`** | Boot the server → fetch `/v3/api-docs` → run codegen | No intermediate JSON schema, no server boot to regenerate, no Mustache templates. Kotlin `T?` and multi-parameter generics (`ApiResponse<D, E>`) are preserved as-is. |
+| **tRPC-style fullstack type sharing** | RPC runtime + shared TS package + monorepo plumbing | Your backend stays standard Spring REST. The frontend imports one generated `.ts`. No shared package, no RPC protocol. |
+
+### How SPIA compares
+
+| Criterion | SPIA | `springdoc + openapi-typescript` | Manual |
+|---|---|---|---|
+| Generation time | compile (KSP) | runtime (server must boot) | — |
+| Intermediate artifact | none (direct `.ts`) | OpenAPI JSON | — |
+| Kotlin `T?` nullability | `T \| null` preserved | depends on Jackson config | manual |
+| Multi-parameter generics (`Page<T>`, `ApiResponse<D, E>`) | emitted as interfaces | typically flattened | manual |
+| Runtime endpoint exposed | no | `/v3/api-docs` required | — |
+| Bean Validation (`@Valid`, `@Size`, …) | ❌ not in v0.2.0 | ✅ | — |
+| Multi-language clients (Swift, Android, …) | ❌ TS only | ✅ | — |
+| Spring Security / auth flows | handled in your axios instance | partial | — |
+
+### When SPIA is *not* the right fit
+
+SPIA is deliberately narrow. Reach for `openapi-generator` or
+`springdoc-openapi` directly when you need:
+
+- **Multi-language clients** — iOS/Android native alongside web.
+- **OpenAPI spec as a deliverable** — for external partners, API gateways,
+  or contract-first workflows.
+- **Bean Validation reflected in the generated SDK** — `@Valid`, `@Size`,
+  `@NotNull` carried through to the frontend types.
+- **A Java-only backend** — SPIA is currently Kotlin-only. Java support is
+  on the roadmap.
+
+For everything else — a Kotlin Spring Boot backend talking to a TypeScript
+frontend — SPIA is the shortest path.
+
 ## Install
 
 ```kotlin
