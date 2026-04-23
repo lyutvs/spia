@@ -3,7 +3,7 @@ import com.vanniktech.maven.publish.SonatypeHost
 plugins {
     `kotlin-dsl`
     `java-gradle-plugin`
-    id("com.vanniktech.maven.publish") version "0.30.0"
+    id("com.vanniktech.maven.publish") version "0.36.0"
 }
 
 group = providers.gradleProperty("group").get()
@@ -15,7 +15,7 @@ repositories {
 }
 
 dependencies {
-    compileOnly("com.google.devtools.ksp:com.google.devtools.ksp.gradle.plugin:2.1.20-1.0.31")
+    compileOnly("com.google.devtools.ksp:com.google.devtools.ksp.gradle.plugin:2.3.7")
 }
 
 gradlePlugin {
