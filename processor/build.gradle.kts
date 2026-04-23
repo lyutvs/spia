@@ -16,7 +16,7 @@ dependencies {
     testImplementation(kotlin("test"))
     testImplementation("dev.zacsweers.kctfork:core:0.5.1")
     testImplementation("dev.zacsweers.kctfork:ksp:0.5.1")
-    testImplementation("org.junit.jupiter:junit-jupiter:5.10.2")
+    testImplementation("org.junit.jupiter:junit-jupiter:6.0.3")
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")
 }
 
