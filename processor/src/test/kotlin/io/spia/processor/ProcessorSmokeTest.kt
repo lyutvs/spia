@@ -6,7 +6,6 @@ import com.google.devtools.ksp.processing.SymbolProcessorProvider
 import com.tschuchort.compiletesting.KotlinCompilation
 import com.tschuchort.compiletesting.SourceFile
 import com.tschuchort.compiletesting.configureKsp
-import com.tschuchort.compiletesting.kspIncremental
 import com.tschuchort.compiletesting.kspProcessorOptions
 import com.tschuchort.compiletesting.symbolProcessorProviders
 import org.junit.jupiter.api.Test
@@ -45,11 +44,16 @@ class ProcessorSmokeTest {
 
         val compilation = KotlinCompilation().apply {
             sources = listOf(source, springStubs())
-            symbolProcessorProviders = mutableListOf<SymbolProcessorProvider>(SpiaProcessorProvider())
-            kspIncremental = false
             inheritClassPath = true
             messageOutputStream = System.out
-            kspProcessorOptions["spia.outputPath"] = outputPath
+            configureKsp(useKsp2 = true) {
+                symbolProcessorProviders.add(SpiaProcessorProvider())
+                incremental = false
+            }
+            kspProcessorOptions = mutableMapOf(
+                "spia.outputPath" to outputPath,
+                "spia.apiClient" to "axios"
+            )
         }
 
         val result = compilation.compile()
@@ -95,9 +99,12 @@ class ProcessorSmokeTest {
             messageOutputStream = System.out
             configureKsp(useKsp2 = true) {
                 symbolProcessorProviders.add(SpiaProcessorProvider())
-                processorOptions["spia.outputPath"] = outputPath
                 incremental = false
             }
+            kspProcessorOptions = mutableMapOf(
+                "spia.outputPath" to outputPath,
+                "spia.apiClient" to "axios"
+            )
         }
 
         val result = compilation.compile()
@@ -151,9 +158,12 @@ class ProcessorSmokeTest {
             messageOutputStream = System.out
             configureKsp(useKsp2 = true) {
                 symbolProcessorProviders.add(SpiaProcessorProvider())
-                processorOptions["spia.outputPath"] = outputPath
                 incremental = false
             }
+            kspProcessorOptions = mutableMapOf(
+                "spia.outputPath" to outputPath,
+                "spia.apiClient" to "axios"
+            )
         }
 
         val result = compilation.compile()
@@ -204,9 +214,12 @@ class ProcessorSmokeTest {
             messageOutputStream = System.out
             configureKsp(useKsp2 = true) {
                 symbolProcessorProviders.add(SpiaProcessorProvider())
-                processorOptions["spia.outputPath"] = outputPath
                 incremental = false
             }
+            kspProcessorOptions = mutableMapOf(
+                "spia.outputPath" to outputPath,
+                "spia.apiClient" to "axios"
+            )
         }
 
         val result = compilation.compile()
@@ -254,9 +267,12 @@ class ProcessorSmokeTest {
             messageOutputStream = System.out
             configureKsp(useKsp2 = true) {
                 symbolProcessorProviders.add(SpiaProcessorProvider())
-                processorOptions["spia.outputPath"] = outputPath
                 incremental = false
             }
+            kspProcessorOptions = mutableMapOf(
+                "spia.outputPath" to outputPath,
+                "spia.apiClient" to "axios"
+            )
         }
 
         val result = compilation.compile()
@@ -302,9 +318,12 @@ class ProcessorSmokeTest {
             messageOutputStream = System.out
             configureKsp(useKsp2 = true) {
                 symbolProcessorProviders.add(SpiaProcessorProvider())
-                processorOptions["spia.outputPath"] = outputPath
                 incremental = false
             }
+            kspProcessorOptions = mutableMapOf(
+                "spia.outputPath" to outputPath,
+                "spia.apiClient" to "axios"
+            )
         }
 
         val result = compilation.compile()
@@ -352,9 +371,12 @@ class ProcessorSmokeTest {
             messageOutputStream = System.out
             configureKsp(useKsp2 = true) {
                 symbolProcessorProviders.add(SpiaProcessorProvider())
-                processorOptions["spia.outputPath"] = outputPath
                 incremental = false
             }
+            kspProcessorOptions = mutableMapOf(
+                "spia.outputPath" to outputPath,
+                "spia.apiClient" to "axios"
+            )
         }
 
         val result = compilation.compile()
@@ -370,6 +392,66 @@ class ProcessorSmokeTest {
         assertTrue(sdk.contains("FormData"), "FormData not generated for multipart")
         assertTrue(sdk.contains("'X-Auth': token"), "X-Auth header key missing")
         assertTrue(sdk.contains("file: File | Blob"), "multipart file param signature missing")
+    }
+
+    @Test
+    fun `fetch emits createApi baseUrl string signature and fetch call`(@TempDir tempDir: File) {
+        val outputPath = File(tempDir, "generated/api-sdk.ts").absolutePath
+
+        val source = SourceFile.kotlin(
+            "UserController.kt",
+            """
+            package test
+
+            import org.springframework.web.bind.annotation.RestController
+            import org.springframework.web.bind.annotation.RequestMapping
+            import org.springframework.web.bind.annotation.GetMapping
+            import org.springframework.web.bind.annotation.PathVariable
+            import org.springframework.web.bind.annotation.PostMapping
+            import org.springframework.web.bind.annotation.RequestBody
+
+            data class User(val id: Long, val name: String)
+
+            @RestController
+            @RequestMapping("/users")
+            class UserController {
+                @GetMapping("/{id}")
+                fun getUser(@PathVariable id: Long): User = User(id, "stub")
+
+                @PostMapping
+                fun createUser(@RequestBody user: User): User = user
+            }
+            """.trimIndent()
+        )
+
+        val compilation = KotlinCompilation().apply {
+            sources = listOf(source, springStubs())
+            inheritClassPath = true
+            messageOutputStream = System.out
+            configureKsp(useKsp2 = true) {
+                symbolProcessorProviders.add(SpiaProcessorProvider())
+                incremental = false
+            }
+            kspProcessorOptions = mutableMapOf(
+                "spia.outputPath" to outputPath,
+                "spia.apiClient" to "fetch"
+            )
+        }
+
+        val result = compilation.compile()
+        assertEquals(
+            KotlinCompilation.ExitCode.OK,
+            result.exitCode,
+            "compilation should succeed with fetch client"
+        )
+
+        assertTrue(File(outputPath).exists(), "SDK file not generated")
+        val sdk = File(outputPath).readText()
+
+        assertTrue(sdk.contains("export function createApi(baseUrl: string)"), "createApi signature missing")
+        assertTrue(sdk.contains("fetch("), "fetch() call missing")
+        assertTrue(sdk.contains("JSON.stringify"), "JSON.stringify for POST body missing")
+        assertTrue(sdk.contains("res.json()"), "res.json() call missing")
     }
 
     private fun multipartFileStub(): SourceFile = SourceFile.kotlin(
