@@ -95,7 +95,70 @@ exact plugin resolution path an external consumer takes.
 A green build + a populated `docs/samples/mavenlocal-consumer/frontend/api.ts`
 means the release bundle is self-contained and ready to upload to Central.
 
-## 5. Actual release
+## 5. Cutting a release (tag-push, automated)
+
+Releases are produced by `.github/workflows/release.yml` on tag push. The
+maintainer's local workflow is:
+
+```bash
+# 1. Move `## [Unreleased]` items in CHANGELOG.md to a new
+#    `## [X.Y.Z] - YYYY-MM-DD` section. Edit `gradle.properties`:
+#    version=X.Y.Z. Commit both.
+git add CHANGELOG.md gradle.properties
+git commit -m "chore(release): prepare vX.Y.Z"
+git push origin main
+
+# 2. Tag the commit and push the tag.
+git tag -a vX.Y.Z -m "Release vX.Y.Z"
+git push origin vX.Y.Z
+```
+
+The workflow then runs three jobs:
+
+1. **verify** — checks that the tag's `X.Y.Z` matches `gradle.properties`
+   `version=` and that the tagged commit is on `main`. Fails fast on
+   mismatch.
+2. **build-and-stage** — runs `./gradlew build`, the mavenLocal dry-run
+   preflight against `docs/samples/mavenlocal-consumer`, then
+   `publishToMavenCentral` for both artifacts (staged on Central Portal,
+   **not** auto-released).
+3. **draft-release** — creates a GitHub Release marked as **draft** with
+   the `## [X.Y.Z]` section of `CHANGELOG.md` as the body.
+
+### Required secrets
+
+| Secret | Value | Source |
+|---|---|---|
+| `MAVEN_CENTRAL_USERNAME` | Portal User Token username | central.sonatype.com → View Account → Generate User Token |
+| `MAVEN_CENTRAL_PASSWORD` | Portal User Token password | same screen |
+| `SIGNING_IN_MEMORY_KEY` | Armored GPG private key (entire `-----BEGIN PGP PRIVATE KEY BLOCK-----` through `-----END PGP PRIVATE KEY BLOCK-----`) | `gpg --export-secret-keys --armor <KEY_ID>` |
+| `SIGNING_IN_MEMORY_KEY_PASSWORD` | GPG key passphrase | — |
+
+For the armored GPG key, pipe the exported file directly to avoid
+clipboard line-ending corruption:
+
+```bash
+gpg --export-secret-keys --armor <KEY_ID> | gh secret set SIGNING_IN_MEMORY_KEY --repo lyutvs/spia
+```
+
+## 6. Post-release review (two manual gates)
+
+After the workflow completes:
+
+1. **Central Portal** — open https://central.sonatype.com →
+   *Deployments* → locate the staged deployment for your version →
+   review signatures, javadoc, POM → click **Release**. Maven Central
+   proper reflects the release within 10–30 minutes.
+2. **GitHub Release** — open
+   https://github.com/lyutvs/spia/releases → locate the draft for
+   `vX.Y.Z` → review the auto-extracted notes → check *Set as a
+   pre-release* if the tag is an alpha/rc → click **Publish release**.
+
+If something looks wrong during post-release review, drop the staged
+deployment on Central Portal and delete the tag locally + remotely,
+then re-tag after fixing the issue.
+
+## 7. Fallback: local-only release (when CI is unavailable)
 
 ```bash
 # 1. Clean build + tsc --strict gate
@@ -113,8 +176,12 @@ git push origin main
 ```
 
 Central Portal performs its own validation (signatures, javadoc, pom
-completeness) before publishing to Maven Central proper — that can take
-10–30 minutes. Check the portal UI for progress.
+completeness) before publishing to Maven Central proper — that can
+take 10–30 minutes. Check the portal UI for progress.
+
+This path requires the maintainer to have the GPG key and Portal
+credentials configured locally (see GPG section below). Prefer the
+tag-push flow in section 5 whenever possible.
 
 ---
 
