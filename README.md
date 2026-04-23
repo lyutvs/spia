@@ -122,8 +122,8 @@ custom auth), see [Configuration options](#configuration-options).
 | `ResponseEntity<T>` | ✅ | Unwrapped; `T` becomes the response type |
 | Kotlin `enum class` | ✅ | Rendered as union or `enum`, configurable |
 | `java.time.*`, `java.util.UUID`, `java.util.Date` | ✅ | Mapped to `string` |
-| axios template | ✅ | Default; emits `client.get/post/...` calls |
-| fetch template | ✅ | `URLSearchParams`-backed query building, `encodeURIComponent` on paths |
+| fetch template | ✅ | Default; `createApi(baseUrl: string)`, `URLSearchParams`-backed query building, `encodeURIComponent` on paths, `if (!res.ok) throw` on every call |
+| axios template | ✅ | Opt-in via `apiClient = "axios"`; `createApi(client: AxiosInstance)` — delegate to the passed instance for interceptors/auth/retries |
 
 ## Not supported in v0.2.0 (known exclusions)
 
