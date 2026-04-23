@@ -8,9 +8,6 @@
     "typecheck:strict": "tsc --noEmit --strict",
     "integration": "tsx src/integration.ts"
   },
-  "dependencies": {
-    "axios": "^1.7.0"
-  },
   "devDependencies": {
     "@types/node": "^20.11.0",
     "typescript": "^5.4.0",

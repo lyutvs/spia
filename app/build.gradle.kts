@@ -27,7 +27,6 @@ spia {
     outputPath = "frontend/src/generated/api-sdk.ts"
     enumStyle = "union"
     longType = "number"
-    apiClient = "axios"
 }
 
 /* ───────────── Frontend typecheck gate ─────────────
