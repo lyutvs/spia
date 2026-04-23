@@ -286,6 +286,7 @@ class TypeScriptGenerator(private val config: SdkConfig) {
                         }
                     }
                 }
+                sb.appendLine("        if (!res.ok) throw new Error(`SPIA ${endpoint.httpMethod.name} $fullPath failed: \${res.status} \${res.statusText}`);")
                 if (promiseType != "void") {
                     sb.appendLine("        return res.json();")
                 }

@@ -452,6 +452,10 @@ class ProcessorSmokeTest {
         assertTrue(sdk.contains("fetch("), "fetch() call missing")
         assertTrue(sdk.contains("JSON.stringify"), "JSON.stringify for POST body missing")
         assertTrue(sdk.contains("res.json()"), "res.json() call missing")
+        assertTrue(sdk.contains("if (!res.ok) throw"), "res.ok guard missing")
+        // Kotlin-side interpolation leak guard: method and path must be baked in at generation time
+        assertFalse(sdk.contains("\${method}"), "un-interpolated Kotlin \${method} template leaked into TS output")
+        assertFalse(sdk.contains("\${path}"), "un-interpolated Kotlin \${path} template leaked into TS output")
     }
 
     private fun multipartFileStub(): SourceFile = SourceFile.kotlin(
