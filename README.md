@@ -7,6 +7,8 @@
 
 # SPIA
 
+[![CI](https://github.com/lyutvs/spia/actions/workflows/ci.yml/badge.svg)](https://github.com/lyutvs/spia/actions/workflows/ci.yml) [![codecov](https://codecov.io/gh/lyutvs/spia/branch/main/graph/badge.svg)](https://codecov.io/gh/lyutvs/spia) [![Maven Central (plugin)](https://img.shields.io/maven-central/v/io.github.lyutvs/gradle-plugin?label=gradle-plugin)](https://central.sonatype.com/artifact/io.github.lyutvs/gradle-plugin) [![Maven Central (processor)](https://img.shields.io/maven-central/v/io.github.lyutvs/processor?label=processor)](https://central.sonatype.com/artifact/io.github.lyutvs/processor) [![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
+
 > Scan your Spring Boot controllers at compile time and automatically
 > generate a **type-safe TypeScript SDK** ready to drop into your frontend.
 
