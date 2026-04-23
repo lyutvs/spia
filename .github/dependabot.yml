@@ -1,0 +1,91 @@
+version: 2
+updates:
+  - package-ecosystem: gradle
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: "02:00"
+      timezone: Etc/UTC
+    open-pull-requests-limit: 5
+    groups:
+      gradle-minor-and-patch:
+        update-types: [minor, patch]
+    commit-message:
+      prefix: "chore(deps)"
+      include: scope
+
+  - package-ecosystem: gradle
+    directory: /gradle-plugin
+    schedule:
+      interval: weekly
+      day: monday
+      time: "02:00"
+      timezone: Etc/UTC
+    open-pull-requests-limit: 3
+    groups:
+      gradle-plugin-minor-and-patch:
+        update-types: [minor, patch]
+    commit-message:
+      prefix: "chore(deps)"
+      include: scope
+
+  - package-ecosystem: gradle
+    directory: /processor
+    schedule:
+      interval: weekly
+      day: monday
+      time: "02:00"
+      timezone: Etc/UTC
+    open-pull-requests-limit: 3
+    groups:
+      processor-minor-and-patch:
+        update-types: [minor, patch]
+    commit-message:
+      prefix: "chore(deps)"
+      include: scope
+
+  - package-ecosystem: gradle
+    directory: /app
+    schedule:
+      interval: weekly
+      day: monday
+      time: "02:00"
+      timezone: Etc/UTC
+    open-pull-requests-limit: 3
+    groups:
+      app-minor-and-patch:
+        update-types: [minor, patch]
+    commit-message:
+      prefix: "chore(deps)"
+      include: scope
+
+  - package-ecosystem: npm
+    directory: /app/frontend
+    schedule:
+      interval: weekly
+      day: monday
+      time: "02:00"
+      timezone: Etc/UTC
+    open-pull-requests-limit: 3
+    groups:
+      frontend-minor-and-patch:
+        update-types: [minor, patch]
+    commit-message:
+      prefix: "chore(deps)"
+      include: scope
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: "02:00"
+      timezone: Etc/UTC
+    open-pull-requests-limit: 3
+    groups:
+      github-actions-all:
+        update-types: [minor, patch, major]
+    commit-message:
+      prefix: "chore(deps)"
+      include: scope
