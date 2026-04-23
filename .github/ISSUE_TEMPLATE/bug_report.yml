@@ -1,0 +1,59 @@
+name: Bug report
+description: Report a problem with SPIA
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to file a bug report. A minimal reproduction
+        dramatically shortens the path to a fix.
+
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: A clear description of the bug — what you did, what you saw, how it differed from what you expected.
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Minimal reproduction
+      description: |
+        The smallest Spring Boot controller + DTOs that produce the problem.
+        Include the `spia { ... }` DSL config you're using.
+      render: kotlin
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected-ts
+    attributes:
+      label: Expected TypeScript output
+      description: What TypeScript did you expect to be generated?
+      render: typescript
+
+  - type: textarea
+    id: actual-ts
+    attributes:
+      label: Actual TypeScript output
+      description: What was actually generated?
+      render: typescript
+
+  - type: input
+    id: spia-version
+    attributes:
+      label: SPIA version
+      placeholder: 0.2.0
+    validations:
+      required: true
+
+  - type: input
+    id: environment
+    attributes:
+      label: Environment
+      description: OS, JDK, Kotlin, KSP, Gradle versions.
+      placeholder: macOS 14, JDK 21, Kotlin 2.1.20, KSP 2.1.20-1.0.31, Gradle 8.10.2
+    validations:
+      required: true
