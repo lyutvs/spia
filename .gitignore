@@ -49,3 +49,6 @@ bin/
 *.asc
 secring.gpg
 private.key
+
+# Audit sandbox controllers (kept local for testing only)
+app/src/main/kotlin/io/spia/demo/sandbox/

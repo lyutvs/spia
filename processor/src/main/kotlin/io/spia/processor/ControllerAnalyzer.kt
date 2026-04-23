@@ -93,6 +93,7 @@ class ControllerAnalyzer(private val typeResolver: TypeResolver) {
                 SpringAnnotations.REQUEST_BODY -> ParameterKind.BODY
                 SpringAnnotations.REQUEST_PARAM -> ParameterKind.QUERY
                 SpringAnnotations.REQUEST_HEADER -> ParameterKind.HEADER
+                SpringAnnotations.REQUEST_PART -> ParameterKind.MULTIPART
                 else -> continue
             }
 
@@ -107,6 +108,28 @@ class ControllerAnalyzer(private val typeResolver: TypeResolver) {
                     kind = kind,
                     required = required,
                     defaultValue = defaultValue,
+                )
+            }
+
+            if (kind == ParameterKind.PATH) {
+                val bindingName = annotation.arguments
+                    .firstOrNull { it.name?.asString() == "value" }?.value as? String
+                    ?: annotation.arguments.firstOrNull { it.name?.asString() == "name" }?.value as? String
+                    ?: paramName
+                val effectiveName = bindingName.takeIf { it.isNotBlank() } ?: paramName
+                return ParameterInfo(name = effectiveName, type = paramType, kind = kind)
+            }
+
+            if (kind == ParameterKind.HEADER) {
+                val headerName = annotation.arguments
+                    .firstOrNull { it.name?.asString() == "value" }?.value as? String
+                    ?: annotation.arguments.firstOrNull { it.name?.asString() == "name" }?.value as? String
+                val effectiveHeaderName = headerName?.takeIf { it.isNotBlank() } ?: paramName
+                return ParameterInfo(
+                    name = paramName,
+                    type = paramType,
+                    kind = kind,
+                    headerName = effectiveHeaderName,
                 )
             }
 

@@ -12,6 +12,8 @@ object SpringAnnotations {
     const val REQUEST_BODY = "org.springframework.web.bind.annotation.RequestBody"
     const val REQUEST_PARAM = "org.springframework.web.bind.annotation.RequestParam"
     const val REQUEST_HEADER = "org.springframework.web.bind.annotation.RequestHeader"
+    const val REQUEST_PART = "org.springframework.web.bind.annotation.RequestPart"
+    const val MULTIPART_FILE = "org.springframework.web.multipart.MultipartFile"
 
     val HTTP_METHOD_ANNOTATIONS = mapOf(
         GET_MAPPING to "GET",

@@ -7,6 +7,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-04-23
+
+### Added
+- `@RequestPart` / `MultipartFile` support: SDK builds `FormData` and renders `File | Blob` / `(File | Blob)[]` types in axios and fetch templates (EC-03).
+- `@RequestHeader` transmission: extracts annotation `value`/`name` as the wire key, passes via axios `headers` config and fetch `headers` object (EC-07).
+
+### Changed
+- **Breaking** — `kotlin.Any` and `java.lang.Object` return types now map to TypeScript `unknown` instead of generating an empty `interface Any {}` (EC-02).
+- **Breaking** — Nullable rendering unified: both `renderDto` and `renderGenericInterface` emit `T | null` for nullable fields (previously `Generic` interfaces used `T?`) (EC-05).
+- `@PathVariable` regex constraints now stripped from generated URL templates (`{id:[0-9]+}` → correct `${id}` substitution) in both `buildTsPath` and `buildFetchPath` (EC-08).
+- `@PathVariable` custom binding name resolved from `value`/`name` annotation attributes instead of always using the Kotlin parameter name (EC-08).
+
+### Fixed
+- `Multipart / file upload endpoints` — previously skipped, now fully supported (was Known Issue in v0.1.0).
+
+### Known Issues (carried over from v0.1.0 audit)
+- Multi-module `outputPath` conflict — last-write-wins, no warning emitted (EC-10, deferred to v0.3.0).
+- `processor` module test coverage at 0.2% line / 0% branch — JaCoCo report available, dedicated test infrastructure deferred (EC-11, deferred to v0.3.0).
+
+### Breaking Changes
+See `### Changed` items marked **Breaking**:
+- `kotlin.Any` / `java.lang.Object` mapping change
+- Nullable rendering unification
+
+v0.1.0 consumers depending on `interface Any {}` or `field?: T` rendering must update their TypeScript code.
+
 ## [0.1.0] - 2026-04-21
 
 ### Added
@@ -79,7 +105,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Kotlin `sealed class` is not mapped to TypeScript discriminated unions.
 - `ProblemDetail` / RFC 9457 error bodies are not emitted.
 - `@JsonProperty` / `@JsonAlias` name overrides are ignored.
-- Multipart / file upload endpoints are skipped.
 
-[Unreleased]: https://github.com/lyutvs/spia/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/lyutvs/spia/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/lyutvs/spia/releases/tag/v0.2.0
 [0.1.0]: https://github.com/lyutvs/spia/releases/tag/v0.1.0

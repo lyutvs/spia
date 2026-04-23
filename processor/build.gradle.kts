@@ -3,6 +3,7 @@ import com.vanniktech.maven.publish.SonatypeHost
 plugins {
     kotlin("jvm")
     id("com.vanniktech.maven.publish") version "0.30.0"
+    id("jacoco")
 }
 
 repositories {
@@ -25,6 +26,16 @@ kotlin {
 
 tasks.test {
     useJUnitPlatform()
+}
+
+jacoco { toolVersion = "0.8.11" }
+tasks.named<Test>("test") { finalizedBy(tasks.named("jacocoTestReport")) }
+tasks.named<JacocoReport>("jacocoTestReport") {
+    dependsOn(tasks.named("test"))
+    reports {
+        xml.required.set(true)
+        html.required.set(true)
+    }
 }
 
 mavenPublishing {

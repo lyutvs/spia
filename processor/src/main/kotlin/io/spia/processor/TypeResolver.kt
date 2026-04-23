@@ -129,6 +129,10 @@ class TypeResolver(private val config: SdkConfig) {
 
             "kotlin.Unit", "java.lang.Void" -> TypeInfo.Primitive("void")
 
+            SpringAnnotations.MULTIPART_FILE -> TypeInfo.Primitive("File | Blob")
+
+            "kotlin.Any", "java.lang.Object" -> TypeInfo.Unknown("unknown")
+
             "java.time.LocalDate", "java.time.LocalDateTime", "java.time.Instant",
             "java.time.ZonedDateTime", "java.time.OffsetDateTime",
             "java.util.Date", "java.util.UUID" -> TypeInfo.Primitive("string")
@@ -259,7 +263,8 @@ class TypeResolver(private val config: SdkConfig) {
         "java.util.Collection",
         "kotlin.collections.Map", "kotlin.collections.MutableMap",
         "java.util.Map", "java.util.HashMap",
-        "org.springframework.http.ResponseEntity" -> true
+        "org.springframework.http.ResponseEntity",
+        SpringAnnotations.MULTIPART_FILE -> true
         else -> false
     }
 }

@@ -29,8 +29,8 @@ export interface UserProfileDto {
 }
 
 export interface ApiResponse<D, E> {
-  data?: D;
-  error?: E;
+  data: D | null;
+  error: E | null;
   success: boolean;
 }
 

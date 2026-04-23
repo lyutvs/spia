@@ -112,7 +112,7 @@ class TypeScriptGenerator(private val config: SdkConfig) {
         for (field in generic.fields) {
             val tsType = renderType(field.type)
             if (field.type.nullable) {
-                sb.appendLine("  ${field.name}?: $tsType;")
+                sb.appendLine("  ${field.name}: $tsType | null;")
             } else {
                 sb.appendLine("  ${field.name}: $tsType;")
             }
@@ -166,11 +166,20 @@ class TypeScriptGenerator(private val config: SdkConfig) {
             sb.appendLine("       */")
         }
 
+        // Multipart parameters
+        val multipartParams = endpoint.parameters.filter { it.kind == ParameterKind.MULTIPART }
+
         // Parameter list — optional query params get a TS-level `?` marker so callers
         // may omit them; fetch/axios builders will skip undefined values below.
+        // MULTIPART params get File | Blob (single) or (File | Blob)[] (list) types.
         val params = endpoint.parameters.joinToString(", ") { param ->
             val marker = if (param.kind == ParameterKind.QUERY && !param.required) "?" else ""
-            "${param.name}$marker: ${renderType(param.type)}"
+            val tsType = if (param.kind == ParameterKind.MULTIPART) {
+                if (param.type is TypeInfo.Array) "(File | Blob)[]" else "File | Blob"
+            } else {
+                renderType(param.type)
+            }
+            "${param.name}$marker: $tsType"
         }
 
         // Return type
@@ -181,23 +190,43 @@ class TypeScriptGenerator(private val config: SdkConfig) {
         val pathVariables = endpoint.parameters.filter { it.kind == ParameterKind.PATH }
         val tsPath = buildTsPath(fullPath, pathVariables)
 
-        // Body parameter
+        // Body parameter (ignored when multipart params are present)
         val bodyParam = endpoint.parameters.firstOrNull { it.kind == ParameterKind.BODY }
 
         // Query parameters
         val queryParams = endpoint.parameters.filter { it.kind == ParameterKind.QUERY }
 
+        // Header parameters
+        val headerParams = endpoint.parameters.filter { it.kind == ParameterKind.HEADER }
+
         when (config.apiClient) {
             ApiClient.AXIOS -> {
-                sb.append("      ${endpoint.functionName}: ($params): Promise<$promiseType> =>\n")
-                val axiosConfig = buildAxiosConfig(queryParams)
-                when (endpoint.httpMethod) {
-                    HttpMethod.GET, HttpMethod.DELETE -> {
-                        sb.appendLine("        client.${endpoint.httpMethod.name.lowercase()}($tsPath$axiosConfig).then(r => r.data),")
+                if (multipartParams.isNotEmpty()) {
+                    // Multipart: emit function body with FormData construction
+                    sb.append("      ${endpoint.functionName}: async ($params): Promise<$promiseType> => {\n")
+                    sb.appendLine("        const formData = new FormData();")
+                    for (mp in multipartParams) {
+                        val fieldName = mp.headerName ?: mp.name
+                        if (mp.type is TypeInfo.Array) {
+                            sb.appendLine("        ${mp.name}.forEach(f => formData.append('$fieldName', f));")
+                        } else {
+                            sb.appendLine("        formData.append('$fieldName', ${mp.name});")
+                        }
                     }
-                    HttpMethod.POST, HttpMethod.PUT, HttpMethod.PATCH -> {
-                        val bodyArg = bodyParam?.name ?: "undefined"
-                        sb.appendLine("        client.${endpoint.httpMethod.name.lowercase()}($tsPath, $bodyArg$axiosConfig).then(r => r.data),")
+                    val axiosConfig = buildAxiosConfig(queryParams, headerParams)
+                    sb.appendLine("        return client.${endpoint.httpMethod.name.lowercase()}($tsPath, formData$axiosConfig).then(r => r.data);")
+                    sb.appendLine("      },")
+                } else {
+                    sb.append("      ${endpoint.functionName}: ($params): Promise<$promiseType> =>\n")
+                    val axiosConfig = buildAxiosConfig(queryParams, headerParams)
+                    when (endpoint.httpMethod) {
+                        HttpMethod.GET, HttpMethod.DELETE -> {
+                            sb.appendLine("        client.${endpoint.httpMethod.name.lowercase()}($tsPath$axiosConfig).then(r => r.data),")
+                        }
+                        HttpMethod.POST, HttpMethod.PUT, HttpMethod.PATCH -> {
+                            val bodyArg = bodyParam?.name ?: "undefined"
+                            sb.appendLine("        client.${endpoint.httpMethod.name.lowercase()}($tsPath, $bodyArg$axiosConfig).then(r => r.data),")
+                        }
                     }
                 }
             }
@@ -210,13 +239,51 @@ class TypeScriptGenerator(private val config: SdkConfig) {
                     fetchPathBase.trimEnd('`') + queryString + "`"
                 } else fetchPathBase
 
-                when (endpoint.httpMethod) {
-                    HttpMethod.GET, HttpMethod.DELETE -> {
-                        sb.appendLine("        const res = await fetch($fetchUrl, { method: '${endpoint.httpMethod.name}' });")
+                if (multipartParams.isNotEmpty()) {
+                    // Multipart: build FormData and use as body (no Content-Type — browser sets boundary)
+                    sb.appendLine("        const formData = new FormData();")
+                    for (mp in multipartParams) {
+                        val fieldName = mp.headerName ?: mp.name
+                        if (mp.type is TypeInfo.Array) {
+                            sb.appendLine("        ${mp.name}.forEach(f => formData.append('$fieldName', f));")
+                        } else {
+                            sb.appendLine("        formData.append('$fieldName', ${mp.name});")
+                        }
                     }
-                    HttpMethod.POST, HttpMethod.PUT, HttpMethod.PATCH -> {
-                        val bodyArg = bodyParam?.name ?: "undefined"
-                        sb.appendLine("        const res = await fetch($fetchUrl, { method: '${endpoint.httpMethod.name}', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify($bodyArg) });")
+                    if (headerParams.isNotEmpty()) {
+                        val headerEntries = headerParams.joinToString(", ") { p ->
+                            val key = p.headerName ?: p.name
+                            "'$key': ${p.name}"
+                        }
+                        sb.appendLine("        const res = await fetch($fetchUrl, { method: '${endpoint.httpMethod.name}', headers: { $headerEntries }, body: formData });")
+                    } else {
+                        sb.appendLine("        const res = await fetch($fetchUrl, { method: '${endpoint.httpMethod.name}', body: formData });")
+                    }
+                } else {
+                    when (endpoint.httpMethod) {
+                        HttpMethod.GET, HttpMethod.DELETE -> {
+                            if (headerParams.isNotEmpty()) {
+                                val headerEntries = headerParams.joinToString(", ") { p ->
+                                    val key = p.headerName ?: p.name
+                                    "'$key': ${p.name}"
+                                }
+                                sb.appendLine("        const res = await fetch($fetchUrl, { method: '${endpoint.httpMethod.name}', headers: { $headerEntries } });")
+                            } else {
+                                sb.appendLine("        const res = await fetch($fetchUrl, { method: '${endpoint.httpMethod.name}' });")
+                            }
+                        }
+                        HttpMethod.POST, HttpMethod.PUT, HttpMethod.PATCH -> {
+                            val bodyArg = bodyParam?.name ?: "undefined"
+                            if (headerParams.isNotEmpty()) {
+                                val headerEntries = headerParams.joinToString(", ") { p ->
+                                    val key = p.headerName ?: p.name
+                                    "'$key': ${p.name}"
+                                }
+                                sb.appendLine("        const res = await fetch($fetchUrl, { method: '${endpoint.httpMethod.name}', headers: { 'Content-Type': 'application/json', $headerEntries }, body: JSON.stringify($bodyArg) });")
+                            } else {
+                                sb.appendLine("        const res = await fetch($fetchUrl, { method: '${endpoint.httpMethod.name}', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify($bodyArg) });")
+                            }
+                        }
                     }
                 }
                 if (promiseType != "void") {
@@ -234,7 +301,9 @@ class TypeScriptGenerator(private val config: SdkConfig) {
         if (pathVariables.isEmpty()) return "`$path`"
         var tsPath = path
         for (pv in pathVariables) {
-            tsPath = tsPath.replace("{${pv.name}}", "\${encodeURIComponent(String(${pv.name}))}")
+            tsPath = Regex("\\{${Regex.escape(pv.name)}(?::[^}]+)?\\}").replace(tsPath) {
+                "\${encodeURIComponent(String(${pv.name}))}"
+            }
         }
         return "`$tsPath`"
     }
@@ -242,21 +311,34 @@ class TypeScriptGenerator(private val config: SdkConfig) {
     private fun buildFetchPath(path: String, pathVariables: List<ParameterInfo>): String {
         var tsPath = path
         for (pv in pathVariables) {
-            tsPath = tsPath.replace("{${pv.name}}", "\${encodeURIComponent(String(${pv.name}))}")
+            tsPath = Regex("\\{${Regex.escape(pv.name)}(?::[^}]+)?\\}").replace(tsPath) {
+                "\${encodeURIComponent(String(${pv.name}))}"
+            }
         }
         return "`\${baseUrl}$tsPath`"
     }
 
-    private fun buildAxiosConfig(queryParams: List<ParameterInfo>): String {
+    private fun buildAxiosConfig(queryParams: List<ParameterInfo>, headerParams: List<ParameterInfo>): String {
         // axios serializes the params object itself — no manual encoding needed here.
         // Optional params are spread conditionally so an explicit `undefined` is dropped
         // from the outgoing query entirely rather than serialized as "undefined".
-        if (queryParams.isEmpty()) return ""
-        val parts = queryParams.joinToString(", ") { p ->
-            if (p.required) "${p.name}: ${p.name}"
-            else "...(${p.name} !== undefined ? { ${p.name}: ${p.name} } : {})"
+        val parts = mutableListOf<String>()
+        if (queryParams.isNotEmpty()) {
+            val queryParts = queryParams.joinToString(", ") { p ->
+                if (p.required) "${p.name}: ${p.name}"
+                else "...(${p.name} !== undefined ? { ${p.name}: ${p.name} } : {})"
+            }
+            parts.add("params: { $queryParts }")
         }
-        return ", { params: { $parts } }"
+        if (headerParams.isNotEmpty()) {
+            val headerEntries = headerParams.joinToString(", ") { p ->
+                val key = p.headerName ?: p.name
+                "'$key': ${p.name}"
+            }
+            parts.add("headers: { $headerEntries }")
+        }
+        if (parts.isEmpty()) return ""
+        return ", { ${parts.joinToString(", ")} }"
     }
 
     private fun buildFetchQueryString(queryParams: List<ParameterInfo>): String {

@@ -43,8 +43,8 @@ export async function demo(): Promise<void> {
 
   // GET with multi-parameter generic envelope
   const wrapped: ApiResponse<UserProfileDto, string> = await api.user.wrappedUser(1);
-  const data: UserProfileDto | undefined = wrapped.data;
-  const error: string | undefined = wrapped.error;
+  const data: UserProfileDto | null = wrapped.data;
+  const error: string | null = wrapped.error;
   console.log('wrapped success:', wrapped.success, 'data:', data?.name, 'error:', error);
 }
 
