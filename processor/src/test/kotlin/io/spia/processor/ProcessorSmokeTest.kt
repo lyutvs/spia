@@ -45,11 +45,13 @@ class ProcessorSmokeTest {
 
         val compilation = KotlinCompilation().apply {
             sources = listOf(source, springStubs())
-            symbolProcessorProviders = mutableListOf<SymbolProcessorProvider>(SpiaProcessorProvider())
-            kspIncremental = false
             inheritClassPath = true
             messageOutputStream = System.out
-            kspProcessorOptions["spia.outputPath"] = outputPath
+            configureKsp {
+                symbolProcessorProviders.add(SpiaProcessorProvider())
+                processorOptions["spia.outputPath"] = outputPath
+                incremental = false
+            }
         }
 
         val result = compilation.compile()
@@ -57,10 +59,6 @@ class ProcessorSmokeTest {
             KotlinCompilation.ExitCode.OK,
             result.exitCode,
             "compilation should succeed with the processor on the KSP classpath"
-        )
-        assertTrue(
-            compilation.symbolProcessorProviders.any { it is SpiaProcessorProvider },
-            "SpiaProcessorProvider should be registered"
         )
     }
 
@@ -93,7 +91,7 @@ class ProcessorSmokeTest {
             sources = listOf(source, springStubs())
             inheritClassPath = true
             messageOutputStream = System.out
-            configureKsp(useKsp2 = true) {
+            configureKsp {
                 symbolProcessorProviders.add(SpiaProcessorProvider())
                 processorOptions["spia.outputPath"] = outputPath
                 incremental = false
@@ -149,7 +147,7 @@ class ProcessorSmokeTest {
             sources = listOf(source, springStubs())
             inheritClassPath = true
             messageOutputStream = System.out
-            configureKsp(useKsp2 = true) {
+            configureKsp {
                 symbolProcessorProviders.add(SpiaProcessorProvider())
                 processorOptions["spia.outputPath"] = outputPath
                 incremental = false
@@ -202,7 +200,7 @@ class ProcessorSmokeTest {
             sources = listOf(source, springStubs())
             inheritClassPath = true
             messageOutputStream = System.out
-            configureKsp(useKsp2 = true) {
+            configureKsp {
                 symbolProcessorProviders.add(SpiaProcessorProvider())
                 processorOptions["spia.outputPath"] = outputPath
                 incremental = false
@@ -252,7 +250,7 @@ class ProcessorSmokeTest {
             sources = listOf(source, springStubs(), multipartFileStub())
             inheritClassPath = true
             messageOutputStream = System.out
-            configureKsp(useKsp2 = true) {
+            configureKsp {
                 symbolProcessorProviders.add(SpiaProcessorProvider())
                 processorOptions["spia.outputPath"] = outputPath
                 incremental = false
@@ -300,7 +298,7 @@ class ProcessorSmokeTest {
             sources = listOf(source, springStubs())
             inheritClassPath = true
             messageOutputStream = System.out
-            configureKsp(useKsp2 = true) {
+            configureKsp {
                 symbolProcessorProviders.add(SpiaProcessorProvider())
                 processorOptions["spia.outputPath"] = outputPath
                 incremental = false
@@ -350,7 +348,7 @@ class ProcessorSmokeTest {
             sources = listOf(source, springStubs(), multipartFileStub())
             inheritClassPath = true
             messageOutputStream = System.out
-            configureKsp(useKsp2 = true) {
+            configureKsp {
                 symbolProcessorProviders.add(SpiaProcessorProvider())
                 processorOptions["spia.outputPath"] = outputPath
                 incremental = false
