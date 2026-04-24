@@ -1,9 +1,9 @@
 plugins {
-    id("org.springframework.boot") version "3.4.1"
+    id("org.springframework.boot") version "4.0.5"
     id("io.spring.dependency-management") version "1.1.7"
-    kotlin("jvm") version "2.1.20"
-    kotlin("plugin.spring") version "2.1.20"
-    id("com.google.devtools.ksp") version "2.1.20-1.0.31"
+    kotlin("jvm") version "2.3.21"
+    kotlin("plugin.spring") version "2.3.21"
+    id("com.google.devtools.ksp") version "2.3.7"
     id("io.github.lyutvs.spia") version "0.1.0"
 }
 
