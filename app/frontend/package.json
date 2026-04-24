@@ -9,8 +9,8 @@
     "integration": "tsx src/integration.ts"
   },
   "devDependencies": {
-    "@types/node": "^20.11.0",
-    "typescript": "^5.4.0",
+    "@types/node": "^25.6.0",
+    "typescript": "^6.0.3",
     "tsx": "^4.7.0"
   }
 }
