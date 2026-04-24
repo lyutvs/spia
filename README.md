@@ -207,7 +207,7 @@ export function createApi(baseUrl: string) {
     user: {
       getUserProfile: async (id: number): Promise<UserProfileDto> => {
         const res = await fetch(`${baseUrl}/api/users/${encodeURIComponent(String(id))}`, { method: 'GET' });
-        if (!res.ok) throw new Error(`SPIA GET /api/users/{id} failed: ${res.status} ${res.statusText}`);
+        if (!res.ok) throw new Error(`SPIA GET ${res.url} failed: ${res.status} ${res.statusText}`);
         return res.json();
       },
 
@@ -219,10 +219,10 @@ export function createApi(baseUrl: string) {
         const params = new URLSearchParams();
         if (page !== undefined) params.append('page', String(page));
         if (size !== undefined) params.append('size', String(size));
-        if (keyword !== undefined) params.append('keyword', keyword);
+        if (keyword !== undefined) params.append('keyword', String(keyword));
         const qs = params.toString();
         const res = await fetch(`${baseUrl}/api/users/list${qs ? `?${qs}` : ''}`, { method: 'GET' });
-        if (!res.ok) throw new Error(`SPIA GET /api/users/list failed: ${res.status} ${res.statusText}`);
+        if (!res.ok) throw new Error(`SPIA GET ${res.url} failed: ${res.status} ${res.statusText}`);
         return res.json();
       },
     },

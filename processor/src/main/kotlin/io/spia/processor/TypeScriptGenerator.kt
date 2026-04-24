@@ -232,12 +232,16 @@ class TypeScriptGenerator(private val config: SdkConfig) {
             }
             ApiClient.FETCH -> {
                 sb.append("      ${endpoint.functionName}: async ($params): Promise<$promiseType> => {\n")
-                val queryString = buildFetchQueryString(queryParams)
+                val (queryPrelude, queryFragment) = buildFetchQuery(queryParams)
                 val fetchPathBase = buildFetchPath(fullPath, pathVariables)
                 // Drop the trailing backtick, append the query fragment, re-close the template literal.
-                val fetchUrl = if (queryString.isNotEmpty()) {
-                    fetchPathBase.trimEnd('`') + queryString + "`"
+                val fetchUrl = if (queryFragment.isNotEmpty()) {
+                    fetchPathBase.trimEnd('`') + queryFragment + "`"
                 } else fetchPathBase
+
+                for (line in queryPrelude) {
+                    sb.appendLine("        $line")
+                }
 
                 if (multipartParams.isNotEmpty()) {
                     // Multipart: build FormData and use as body (no Content-Type — browser sets boundary)
@@ -286,7 +290,7 @@ class TypeScriptGenerator(private val config: SdkConfig) {
                         }
                     }
                 }
-                sb.appendLine("        if (!res.ok) throw new Error(`SPIA ${endpoint.httpMethod.name} $fullPath failed: \${res.status} \${res.statusText}`);")
+                sb.appendLine("        if (!res.ok) throw new Error(`SPIA ${endpoint.httpMethod.name} \${res.url} failed: \${res.status} \${res.statusText}`);")
                 if (promiseType != "void") {
                     sb.appendLine("        return res.json();")
                 }
@@ -342,28 +346,35 @@ class TypeScriptGenerator(private val config: SdkConfig) {
         return ", { ${parts.joinToString(", ")} }"
     }
 
-    private fun buildFetchQueryString(queryParams: List<ParameterInfo>): String {
-        if (queryParams.isEmpty()) return ""
+    /**
+     * Returns (preludeLines, urlFragment) for the fetch query string.
+     * - No params: empty list + empty fragment.
+     * - All required: inline `?k=${encodeURIComponent(...)}&...` fragment, no prelude.
+     * - Has optional: emit `const params = new URLSearchParams(); …; const qs = params.toString();`
+     *   as prelude and use `${qs ? `?${qs}` : ''}` as the fragment so all-undefined calls
+     *   produce a clean URL with no trailing `?`.
+     */
+    private fun buildFetchQuery(queryParams: List<ParameterInfo>): Pair<List<String>, String> {
+        if (queryParams.isEmpty()) return emptyList<String>() to ""
         val hasOptional = queryParams.any { !it.required }
         if (!hasOptional) {
-            val params = queryParams.joinToString("&") {
+            val inline = queryParams.joinToString("&") {
                 "${encodeURIComponentLiteral(it.name)}=\${encodeURIComponent(String(${it.name}))}"
             }
-            return "?$params"
+            return emptyList<String>() to "?$inline"
         }
-        // Build a conditional URLSearchParams expression so undefined values skip the wire.
-        val builder = buildString {
-            append("?\${(() => { const _p = new URLSearchParams();")
+        val prelude = buildList {
+            add("const params = new URLSearchParams();")
             queryParams.forEach { p ->
                 if (p.required) {
-                    append(" _p.append('${p.name}', String(${p.name}));")
+                    add("params.append('${p.name}', String(${p.name}));")
                 } else {
-                    append(" if (${p.name} !== undefined) _p.append('${p.name}', String(${p.name}));")
+                    add("if (${p.name} !== undefined) params.append('${p.name}', String(${p.name}));")
                 }
             }
-            append(" return _p.toString(); })()}")
+            add("const qs = params.toString();")
         }
-        return builder
+        return prelude to "\${qs ? `?\${qs}` : ''}"
     }
 
     private fun encodeURIComponentLiteral(name: String): String =

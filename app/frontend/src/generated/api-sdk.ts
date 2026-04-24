@@ -115,7 +115,7 @@ export function createApi(baseUrl: string) {
        */
       getRole: async (request: RoleRequest): Promise<UserRole[]> => {
         const res = await fetch(`${baseUrl}/sandbox/ec04/role`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(request) });
-        if (!res.ok) throw new Error(`SPIA POST /sandbox/ec04/role failed: ${res.status} ${res.statusText}`);
+        if (!res.ok) throw new Error(`SPIA POST ${res.url} failed: ${res.status} ${res.statusText}`);
         return res.json();
       },
 
@@ -125,7 +125,7 @@ export function createApi(baseUrl: string) {
        */
       getNotification: async (level: NotificationLevel): Promise<NotificationLevel> => {
         const res = await fetch(`${baseUrl}/sandbox/ec04/notification/${encodeURIComponent(String(level))}`, { method: 'GET' });
-        if (!res.ok) throw new Error(`SPIA GET /sandbox/ec04/notification/{level} failed: ${res.status} ${res.statusText}`);
+        if (!res.ok) throw new Error(`SPIA GET ${res.url} failed: ${res.status} ${res.statusText}`);
         return res.json();
       },
 
@@ -136,7 +136,7 @@ export function createApi(baseUrl: string) {
        */
       getItem: async (): Promise<string> => {
         const res = await fetch(`${baseUrl}/sandbox/ec09/get`, { method: 'GET' });
-        if (!res.ok) throw new Error(`SPIA GET /sandbox/ec09/get failed: ${res.status} ${res.statusText}`);
+        if (!res.ok) throw new Error(`SPIA GET ${res.url} failed: ${res.status} ${res.statusText}`);
         return res.json();
       },
 
@@ -145,7 +145,7 @@ export function createApi(baseUrl: string) {
        */
       postItem: async (body: PostBody): Promise<string> => {
         const res = await fetch(`${baseUrl}/sandbox/ec09/post`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
-        if (!res.ok) throw new Error(`SPIA POST /sandbox/ec09/post failed: ${res.status} ${res.statusText}`);
+        if (!res.ok) throw new Error(`SPIA POST ${res.url} failed: ${res.status} ${res.statusText}`);
         return res.json();
       },
 
@@ -154,7 +154,7 @@ export function createApi(baseUrl: string) {
        */
       putItem: async (id: number, body: PutBody): Promise<string> => {
         const res = await fetch(`${baseUrl}/sandbox/ec09/put/${encodeURIComponent(String(id))}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
-        if (!res.ok) throw new Error(`SPIA PUT /sandbox/ec09/put/{id} failed: ${res.status} ${res.statusText}`);
+        if (!res.ok) throw new Error(`SPIA PUT ${res.url} failed: ${res.status} ${res.statusText}`);
         return res.json();
       },
 
@@ -163,7 +163,7 @@ export function createApi(baseUrl: string) {
        */
       deleteItem: async (id: number): Promise<void> => {
         const res = await fetch(`${baseUrl}/sandbox/ec09/delete/${encodeURIComponent(String(id))}`, { method: 'DELETE' });
-        if (!res.ok) throw new Error(`SPIA DELETE /sandbox/ec09/delete/{id} failed: ${res.status} ${res.statusText}`);
+        if (!res.ok) throw new Error(`SPIA DELETE ${res.url} failed: ${res.status} ${res.statusText}`);
       },
 
       /**
@@ -171,7 +171,7 @@ export function createApi(baseUrl: string) {
        */
       patchItem: async (id: number, body: PatchBody): Promise<string> => {
         const res = await fetch(`${baseUrl}/sandbox/ec09/patch/${encodeURIComponent(String(id))}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
-        if (!res.ok) throw new Error(`SPIA PATCH /sandbox/ec09/patch/{id} failed: ${res.status} ${res.statusText}`);
+        if (!res.ok) throw new Error(`SPIA PATCH ${res.url} failed: ${res.status} ${res.statusText}`);
         return res.json();
       },
 
@@ -183,7 +183,7 @@ export function createApi(baseUrl: string) {
        */
       getDocument: async (id: number): Promise<UserDocument> => {
         const res = await fetch(`${baseUrl}/sandbox/ec06/doc/${encodeURIComponent(String(id))}`, { method: 'GET' });
-        if (!res.ok) throw new Error(`SPIA GET /sandbox/ec06/doc/{id} failed: ${res.status} ${res.statusText}`);
+        if (!res.ok) throw new Error(`SPIA GET ${res.url} failed: ${res.status} ${res.statusText}`);
         return res.json();
       },
 
@@ -193,7 +193,7 @@ export function createApi(baseUrl: string) {
        */
       createDocument: async (body: UserDocument): Promise<UserDocument> => {
         const res = await fetch(`${baseUrl}/sandbox/ec06/doc`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
-        if (!res.ok) throw new Error(`SPIA POST /sandbox/ec06/doc failed: ${res.status} ${res.statusText}`);
+        if (!res.ok) throw new Error(`SPIA POST ${res.url} failed: ${res.status} ${res.statusText}`);
         return res.json();
       },
 
@@ -206,7 +206,7 @@ export function createApi(baseUrl: string) {
         const formData = new FormData();
         formData.append('file', file);
         const res = await fetch(`${baseUrl}/sandbox/ec03/upload?description=${encodeURIComponent(String(description))}`, { method: 'POST', body: formData });
-        if (!res.ok) throw new Error(`SPIA POST /sandbox/ec03/upload failed: ${res.status} ${res.statusText}`);
+        if (!res.ok) throw new Error(`SPIA POST ${res.url} failed: ${res.status} ${res.statusText}`);
         return res.json();
       },
 
@@ -217,7 +217,7 @@ export function createApi(baseUrl: string) {
         const formData = new FormData();
         files.forEach(f => formData.append('files', f));
         const res = await fetch(`${baseUrl}/sandbox/ec03/multi-upload`, { method: 'POST', body: formData });
-        if (!res.ok) throw new Error(`SPIA POST /sandbox/ec03/multi-upload failed: ${res.status} ${res.statusText}`);
+        if (!res.ok) throw new Error(`SPIA POST ${res.url} failed: ${res.status} ${res.statusText}`);
         return res.json();
       },
 
@@ -229,7 +229,7 @@ export function createApi(baseUrl: string) {
        */
       nestedListMap: async (): Promise<{ [key: string]: NestedItem }[]> => {
         const res = await fetch(`${baseUrl}/sandbox/ec01/nested-list-map`, { method: 'GET' });
-        if (!res.ok) throw new Error(`SPIA GET /sandbox/ec01/nested-list-map failed: ${res.status} ${res.statusText}`);
+        if (!res.ok) throw new Error(`SPIA GET ${res.url} failed: ${res.status} ${res.statusText}`);
         return res.json();
       },
 
@@ -239,7 +239,7 @@ export function createApi(baseUrl: string) {
        */
       genericWrapper: async (request: GenericWrapper<NestedItem[]>): Promise<GenericWrapper<{ [key: string]: NestedItem }>> => {
         const res = await fetch(`${baseUrl}/sandbox/ec01/generic-wrapper`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(request) });
-        if (!res.ok) throw new Error(`SPIA POST /sandbox/ec01/generic-wrapper failed: ${res.status} ${res.statusText}`);
+        if (!res.ok) throw new Error(`SPIA POST ${res.url} failed: ${res.status} ${res.statusText}`);
         return res.json();
       },
 
@@ -249,7 +249,7 @@ export function createApi(baseUrl: string) {
        */
       tripleNested: async (): Promise<{ [key: string]: { [key: string]: NestedItem }[] }> => {
         const res = await fetch(`${baseUrl}/sandbox/ec01/triple-nested`, { method: 'GET' });
-        if (!res.ok) throw new Error(`SPIA GET /sandbox/ec01/triple-nested failed: ${res.status} ${res.statusText}`);
+        if (!res.ok) throw new Error(`SPIA GET ${res.url} failed: ${res.status} ${res.statusText}`);
         return res.json();
       },
 
@@ -261,7 +261,7 @@ export function createApi(baseUrl: string) {
        */
       getDto: async (): Promise<NullableDto> => {
         const res = await fetch(`${baseUrl}/sandbox/ec05/dto`, { method: 'GET' });
-        if (!res.ok) throw new Error(`SPIA GET /sandbox/ec05/dto failed: ${res.status} ${res.statusText}`);
+        if (!res.ok) throw new Error(`SPIA GET ${res.url} failed: ${res.status} ${res.statusText}`);
         return res.json();
       },
 
@@ -271,7 +271,7 @@ export function createApi(baseUrl: string) {
        */
       postWrapper: async (body: NullableGenericWrapper<NullableDto>): Promise<NullableGenericWrapper<NullableDto>> => {
         const res = await fetch(`${baseUrl}/sandbox/ec05/wrapper`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
-        if (!res.ok) throw new Error(`SPIA POST /sandbox/ec05/wrapper failed: ${res.status} ${res.statusText}`);
+        if (!res.ok) throw new Error(`SPIA POST ${res.url} failed: ${res.status} ${res.statusText}`);
         return res.json();
       },
 
@@ -284,7 +284,7 @@ export function createApi(baseUrl: string) {
        */
       mixedParameters: async (id: number, filter: string, traceId: string, body: MixedRequest): Promise<MixedRequest> => {
         const res = await fetch(`${baseUrl}/sandbox/ec07/mixed/${encodeURIComponent(String(id))}?filter=${encodeURIComponent(String(filter))}`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Trace-Id': traceId }, body: JSON.stringify(body) });
-        if (!res.ok) throw new Error(`SPIA POST /sandbox/ec07/mixed/{id} failed: ${res.status} ${res.statusText}`);
+        if (!res.ok) throw new Error(`SPIA POST ${res.url} failed: ${res.status} ${res.statusText}`);
         return res.json();
       },
 
@@ -296,7 +296,7 @@ export function createApi(baseUrl: string) {
        */
       getById: async (id: number): Promise<{ [key: string]: unknown }> => {
         const res = await fetch(`${baseUrl}/sandbox/ec08/regex/${encodeURIComponent(String(id))}`, { method: 'GET' });
-        if (!res.ok) throw new Error(`SPIA GET /sandbox/ec08/regex/{id:[0-9]+} failed: ${res.status} ${res.statusText}`);
+        if (!res.ok) throw new Error(`SPIA GET ${res.url} failed: ${res.status} ${res.statusText}`);
         return res.json();
       },
 
@@ -306,7 +306,7 @@ export function createApi(baseUrl: string) {
        */
       getItem: async (userId: number, itemId: number): Promise<{ [key: string]: unknown }> => {
         const res = await fetch(`${baseUrl}/sandbox/ec08/multi/${encodeURIComponent(String(userId))}/items/${encodeURIComponent(String(itemId))}`, { method: 'GET' });
-        if (!res.ok) throw new Error(`SPIA GET /sandbox/ec08/multi/{userId}/items/{itemId} failed: ${res.status} ${res.statusText}`);
+        if (!res.ok) throw new Error(`SPIA GET ${res.url} failed: ${res.status} ${res.statusText}`);
         return res.json();
       },
 
@@ -316,7 +316,7 @@ export function createApi(baseUrl: string) {
        */
       getMixedRegex: async (userId: number, itemId: string): Promise<{ [key: string]: unknown }> => {
         const res = await fetch(`${baseUrl}/sandbox/ec08/mixed-regex/${encodeURIComponent(String(userId))}/items/${encodeURIComponent(String(itemId))}`, { method: 'GET' });
-        if (!res.ok) throw new Error(`SPIA GET /sandbox/ec08/mixed-regex/{userId:[0-9]+}/items/{itemId:[a-z]+} failed: ${res.status} ${res.statusText}`);
+        if (!res.ok) throw new Error(`SPIA GET ${res.url} failed: ${res.status} ${res.statusText}`);
         return res.json();
       },
 
@@ -327,7 +327,7 @@ export function createApi(baseUrl: string) {
        */
       sealedResponse: async (): Promise<AuditResult> => {
         const res = await fetch(`${baseUrl}/sandbox/ec02/sealed-response`, { method: 'GET' });
-        if (!res.ok) throw new Error(`SPIA GET /sandbox/ec02/sealed-response failed: ${res.status} ${res.statusText}`);
+        if (!res.ok) throw new Error(`SPIA GET ${res.url} failed: ${res.status} ${res.statusText}`);
         return res.json();
       },
 
@@ -336,7 +336,7 @@ export function createApi(baseUrl: string) {
        */
       interfaceResponse: async (): Promise<Reportable> => {
         const res = await fetch(`${baseUrl}/sandbox/ec02/interface-response`, { method: 'GET' });
-        if (!res.ok) throw new Error(`SPIA GET /sandbox/ec02/interface-response failed: ${res.status} ${res.statusText}`);
+        if (!res.ok) throw new Error(`SPIA GET ${res.url} failed: ${res.status} ${res.statusText}`);
         return res.json();
       },
 
@@ -345,7 +345,7 @@ export function createApi(baseUrl: string) {
        */
       anyReturn: async (): Promise<unknown> => {
         const res = await fetch(`${baseUrl}/sandbox/ec02/any-return`, { method: 'GET' });
-        if (!res.ok) throw new Error(`SPIA GET /sandbox/ec02/any-return failed: ${res.status} ${res.statusText}`);
+        if (!res.ok) throw new Error(`SPIA GET ${res.url} failed: ${res.status} ${res.statusText}`);
         return res.json();
       },
 
@@ -356,7 +356,7 @@ export function createApi(baseUrl: string) {
        */
       getUserProfile: async (id: number): Promise<UserProfileDto> => {
         const res = await fetch(`${baseUrl}/api/users/${encodeURIComponent(String(id))}`, { method: 'GET' });
-        if (!res.ok) throw new Error(`SPIA GET /api/users/{id} failed: ${res.status} ${res.statusText}`);
+        if (!res.ok) throw new Error(`SPIA GET ${res.url} failed: ${res.status} ${res.statusText}`);
         return res.json();
       },
 
@@ -365,7 +365,7 @@ export function createApi(baseUrl: string) {
        */
       createUser: async (request: CreateUserRequest): Promise<UserProfileDto> => {
         const res = await fetch(`${baseUrl}/api/users`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(request) });
-        if (!res.ok) throw new Error(`SPIA POST /api/users failed: ${res.status} ${res.statusText}`);
+        if (!res.ok) throw new Error(`SPIA POST ${res.url} failed: ${res.status} ${res.statusText}`);
         return res.json();
       },
 
@@ -374,7 +374,7 @@ export function createApi(baseUrl: string) {
        */
       updateUser: async (id: number, request: UpdateUserRequest): Promise<UserProfileDto> => {
         const res = await fetch(`${baseUrl}/api/users/${encodeURIComponent(String(id))}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(request) });
-        if (!res.ok) throw new Error(`SPIA PUT /api/users/{id} failed: ${res.status} ${res.statusText}`);
+        if (!res.ok) throw new Error(`SPIA PUT ${res.url} failed: ${res.status} ${res.statusText}`);
         return res.json();
       },
 
@@ -383,7 +383,7 @@ export function createApi(baseUrl: string) {
        */
       deleteUser: async (id: number): Promise<void> => {
         const res = await fetch(`${baseUrl}/api/users/${encodeURIComponent(String(id))}`, { method: 'DELETE' });
-        if (!res.ok) throw new Error(`SPIA DELETE /api/users/{id} failed: ${res.status} ${res.statusText}`);
+        if (!res.ok) throw new Error(`SPIA DELETE ${res.url} failed: ${res.status} ${res.statusText}`);
       },
 
       /**
@@ -392,8 +392,13 @@ export function createApi(baseUrl: string) {
        * @param {number} [size=20] Server default: 20
        */
       listUsers: async (page?: number, size?: number, keyword?: string): Promise<Page<UserProfileDto>> => {
-        const res = await fetch(`${baseUrl}/api/users/list?${(() => { const _p = new URLSearchParams(); if (page !== undefined) _p.append('page', String(page)); if (size !== undefined) _p.append('size', String(size)); if (keyword !== undefined) _p.append('keyword', String(keyword)); return _p.toString(); })()}`, { method: 'GET' });
-        if (!res.ok) throw new Error(`SPIA GET /api/users/list failed: ${res.status} ${res.statusText}`);
+        const params = new URLSearchParams();
+        if (page !== undefined) params.append('page', String(page));
+        if (size !== undefined) params.append('size', String(size));
+        if (keyword !== undefined) params.append('keyword', String(keyword));
+        const qs = params.toString();
+        const res = await fetch(`${baseUrl}/api/users/list${qs ? `?${qs}` : ''}`, { method: 'GET' });
+        if (!res.ok) throw new Error(`SPIA GET ${res.url} failed: ${res.status} ${res.statusText}`);
         return res.json();
       },
 
@@ -402,7 +407,7 @@ export function createApi(baseUrl: string) {
        */
       wrappedUser: async (id: number): Promise<ApiResponse<UserProfileDto, string>> => {
         const res = await fetch(`${baseUrl}/api/users/${encodeURIComponent(String(id))}/wrapped`, { method: 'GET' });
-        if (!res.ok) throw new Error(`SPIA GET /api/users/{id}/wrapped failed: ${res.status} ${res.statusText}`);
+        if (!res.ok) throw new Error(`SPIA GET ${res.url} failed: ${res.status} ${res.statusText}`);
         return res.json();
       },
 
