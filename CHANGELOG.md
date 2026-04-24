@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **Breaking (toolchain)** — Minimum Kotlin raised to **2.3.x** (from 2.1.x). Consumers must upgrade their Kotlin plugin version accordingly.
+- **Breaking (toolchain)** — Minimum KSP raised to **2.3.x** (from 2.1.x-1.0.31). The `com.google.devtools.ksp` plugin version on the consumer side must match the Kotlin version (e.g., `2.3.21` Kotlin with KSP `2.3.7`).
+- **Breaking (toolchain)** — Minimum Gradle raised to **9.x** (from 8.10.x). The published plugin is compiled against Gradle 9 APIs; consumers must upgrade their Gradle wrapper.
+
+### Internal
+
+- Publishing plugin: `com.vanniktech.maven.publish` 0.30 → 0.36. `publishToMavenCentral()` now targets Central Portal by default (no `SonatypeHost` argument needed).
+- Test infrastructure: `kctfork` 0.5 → 0.12 (KSP2 is the only mode), `junit-jupiter` 5 → 6, `typescript` 5.9 → 6.0 (requires `"types": ["node"]` in `tsconfig.json` for consumers using `@types/node` globals).
+- Demo module: Spring Boot 3.4 → 4.0. SPIA's processor has no Spring runtime dependency; annotation detection by FQN is unchanged.
+- GitHub Actions CI: processor tests + KSP + `tsc --strict` + JaCoCo → Codecov.
+- Tag-push release automation: `v*` tag triggers signed build, Central Portal staging, and a draft GitHub Release.
+- Supply-chain hygiene: Dependabot across 6 ecosystems, CodeQL for Kotlin/Java, PR-time `dependency-review-action`.
+- Community files: issue/PR templates, `SECURITY.md` (GitHub Private Vulnerability Reporting), branch protection on `main`.
+
 ## [0.2.0] - 2026-04-23
 
 ### Added
