@@ -1,4 +1,3 @@
-import axios from 'axios';
 import {
   createApi,
   type Address,
@@ -9,7 +8,7 @@ import {
   type UserProfileDto,
 } from './generated/api-sdk';
 
-const api = createApi(axios.create({ baseURL: 'http://localhost:8080' }));
+const api = createApi('http://localhost:8080');
 
 export async function demo(): Promise<void> {
   // GET — path variable + nested DTO

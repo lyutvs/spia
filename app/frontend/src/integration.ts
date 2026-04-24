@@ -5,10 +5,9 @@
  * and this script in another with
  *   cd app/frontend && npm run integration
  */
-import axios from 'axios';
 import { createApi } from './generated/api-sdk';
 
-const api = createApi(axios.create({ baseURL: 'http://localhost:8080' }));
+const api = createApi('http://localhost:8080');
 
 async function run(): Promise<void> {
   const profile = await api.user.getUserProfile(42);
