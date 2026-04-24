@@ -391,6 +391,7 @@ class ProcessorSmokeTest {
             import org.springframework.web.bind.annotation.PathVariable
             import org.springframework.web.bind.annotation.PostMapping
             import org.springframework.web.bind.annotation.RequestBody
+            import org.springframework.web.bind.annotation.RequestParam
 
             data class User(val id: Long, val name: String)
 
@@ -402,6 +403,18 @@ class ProcessorSmokeTest {
 
                 @PostMapping
                 fun createUser(@RequestBody user: User): User = user
+
+                // has-optional buildFetchQuery branch — must emit URLSearchParams prelude + conditional qs fragment.
+                @GetMapping("/search")
+                fun search(
+                    @RequestParam(required = false) page: Int?,
+                    @RequestParam(required = false) size: Int?,
+                    @RequestParam(required = false) keyword: String?,
+                ): List<User> = emptyList()
+
+                // all-required buildFetchQuery branch — must emit inline encodeURIComponent form.
+                @GetMapping("/count")
+                fun count(@RequestParam active: Boolean): Int = 0
             }
             """.trimIndent()
         )
@@ -434,9 +447,25 @@ class ProcessorSmokeTest {
         assertTrue(sdk.contains("res.json()"), "res.json() call missing")
         assertTrue(sdk.contains("if (!res.ok) throw"), "res.ok guard missing")
         assertTrue(sdk.contains("\${res.url}"), "error message must use resolved \${res.url}, not the route template")
+
+        // has-optional @RequestParam branch: URLSearchParams prelude + conditional ?qs fragment.
+        assertTrue(sdk.contains("const params = new URLSearchParams();"), "URLSearchParams prelude missing for optional query params")
+        assertTrue(sdk.contains("if (page !== undefined) params.append('page', String(page));"), "optional page append missing")
+        assertTrue(sdk.contains("if (keyword !== undefined) params.append('keyword', String(keyword));"), "optional keyword append missing")
+        assertTrue(sdk.contains("const qs = params.toString();"), "qs extraction missing")
+        assertTrue(sdk.contains("\${qs ? `?\${qs}` : ''}"), "conditional ?qs URL fragment missing")
+
+        // all-required @RequestParam branch: inline `?k=\${encodeURIComponent(...)}` form, no prelude.
+        assertTrue(
+            sdk.contains("?active=\${encodeURIComponent(String(active))}"),
+            "all-required query params must use inline encodeURIComponent form",
+        )
+
         // Kotlin-side interpolation leak guard: method and path must be baked in at generation time
         assertFalse(sdk.contains("\${method}"), "un-interpolated Kotlin \${method} template leaked into TS output")
         assertFalse(sdk.contains("\${path}"), "un-interpolated Kotlin \${path} template leaked into TS output")
+        // Old IIFE form must not leak back in.
+        assertFalse(sdk.contains("(() => { const _p = new URLSearchParams"), "legacy IIFE query form leaked into TS output")
     }
 
     private fun multipartFileStub(): SourceFile = SourceFile.kotlin(
