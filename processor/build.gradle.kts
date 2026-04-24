@@ -1,8 +1,6 @@
-import com.vanniktech.maven.publish.SonatypeHost
-
 plugins {
     kotlin("jvm")
-    id("com.vanniktech.maven.publish") version "0.30.0"
+    id("com.vanniktech.maven.publish") version "0.36.0"
     id("jacoco")
 }
 
@@ -11,11 +9,11 @@ repositories {
 }
 
 dependencies {
-    implementation("com.google.devtools.ksp:symbol-processing-api:2.1.20-1.0.31")
+    implementation("com.google.devtools.ksp:symbol-processing-api:2.3.7")
 
     testImplementation(kotlin("test"))
-    testImplementation("dev.zacsweers.kctfork:core:0.5.1")
-    testImplementation("dev.zacsweers.kctfork:ksp:0.5.1")
+    testImplementation("dev.zacsweers.kctfork:core:0.12.1")
+    testImplementation("dev.zacsweers.kctfork:ksp:0.12.1")
     testImplementation("org.junit.jupiter:junit-jupiter:6.0.3")
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")
 }
@@ -39,7 +37,7 @@ tasks.named<JacocoReport>("jacocoTestReport") {
 }
 
 mavenPublishing {
-    publishToMavenCentral(SonatypeHost.CENTRAL_PORTAL)
+    publishToMavenCentral()
 
     if (project.hasProperty("signing.keyId") ||
         System.getenv("ORG_GRADLE_PROJECT_signingInMemoryKey") != null) {
