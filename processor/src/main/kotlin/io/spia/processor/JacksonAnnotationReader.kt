@@ -2,6 +2,7 @@ package io.spia.processor
 
 import com.google.devtools.ksp.symbol.KSAnnotated
 import com.google.devtools.ksp.symbol.KSAnnotation
+import com.google.devtools.ksp.symbol.KSClassDeclaration
 
 /**
  * Reads Jackson serialization annotations from KSP symbol declarations.
@@ -10,8 +11,8 @@ import com.google.devtools.ksp.symbol.KSAnnotation
  * - [JacksonAnnotations.JSON_PROPERTY] — overrides the serialized field name
  * - [JacksonAnnotations.JSON_ALIAS] — provides additional deserialization aliases
  * - [JacksonAnnotations.JSON_INCLUDE] — controls null-value inclusion (NON_NULL → optional field)
- *
- * // Task 14 will add: typeProperty, typeNames, subTypes
+ * - [JacksonAnnotations.JSON_TYPE_INFO] — discriminator property name for sealed hierarchies
+ * - [JacksonAnnotations.JSON_TYPE_NAME] — per-subclass discriminator value
  */
 object JacksonAnnotationReader {
 
@@ -45,6 +46,27 @@ object JacksonAnnotationReader {
         val annotation = symbol.findAnnotation(JacksonAnnotations.JSON_INCLUDE) ?: return false
         val valueArg = annotation.arguments.firstOrNull { it.name?.asString() == "value" }?.value
         return valueArg?.toString()?.contains("NON_NULL") == true
+    }
+
+    /**
+     * Returns the discriminator property name from `@JsonTypeInfo(property = "type")` on [cls],
+     * or null if the annotation is absent (callers may fall back to a nominal union).
+     * Defaults to `"type"` if the annotation is present but `property` is not set.
+     */
+    fun sealedDiscriminator(cls: KSClassDeclaration): String? {
+        val annotation = cls.findAnnotation(JacksonAnnotations.JSON_TYPE_INFO) ?: return null
+        val property = annotation.arguments.firstOrNull { it.name?.asString() == "property" }?.value as? String
+        return if (property.isNullOrBlank()) "type" else property
+    }
+
+    /**
+     * Returns the discriminator value for [subclass] from `@JsonTypeName("value")`,
+     * or falls back to the simple class name if the annotation is absent.
+     */
+    fun sealedTypeName(subclass: KSClassDeclaration): String {
+        val annotation = subclass.findAnnotation(JacksonAnnotations.JSON_TYPE_NAME) ?: return subclass.simpleName.asString()
+        val value = annotation.arguments.firstOrNull { it.name?.asString() == "value" }?.value as? String
+        return if (value.isNullOrBlank()) subclass.simpleName.asString() else value
     }
 
     private fun KSAnnotated.findAnnotation(fqn: String): KSAnnotation? =

@@ -611,6 +611,91 @@ class ProcessorSmokeTest {
     }
 
     @Test
+    fun `EC-08 sealed class rendered as discriminated union via @JsonTypeInfo`(@TempDir tempDir: File) {
+        val outputPath = File(tempDir, "generated/api-sdk.ts").absolutePath
+
+        val source = SourceFile.kotlin(
+            "SealedController.kt",
+            """
+            package test
+
+            import org.springframework.web.bind.annotation.RestController
+            import org.springframework.web.bind.annotation.GetMapping
+            import org.springframework.web.bind.annotation.RequestMapping
+            import com.fasterxml.jackson.annotation.JsonTypeInfo
+            import com.fasterxml.jackson.annotation.JsonTypeName
+            import com.fasterxml.jackson.annotation.JsonSubTypes
+
+            @JsonTypeInfo(use = JsonTypeInfo.Id.NAME, property = "kind")
+            @JsonSubTypes(
+                JsonSubTypes.Type(value = Circle::class, name = "circle"),
+                JsonSubTypes.Type(value = Square::class, name = "square"),
+                JsonSubTypes.Type(value = Triangle::class, name = "triangle"),
+            )
+            sealed class Shape
+
+            @JsonTypeName("circle")
+            data class Circle(val radius: Double) : Shape()
+
+            @JsonTypeName("square")
+            data class Square(val side: Double) : Shape()
+
+            @JsonTypeName("triangle")
+            data class Triangle(val base: Double, val height: Double) : Shape()
+
+            @RestController
+            @RequestMapping("/api/shapes")
+            class SealedController {
+                @GetMapping("/circle")
+                fun getCircle(): Shape = Circle(radius = 5.0)
+            }
+            """.trimIndent()
+        )
+
+        val compilation = KotlinCompilation().apply {
+            sources = listOf(source, coreSpringStubs(), jacksonStubs())
+            inheritClassPath = true
+            messageOutputStream = System.out
+            configureKsp {
+                symbolProcessorProviders.add(SpiaProcessorProvider())
+                processorOptions["spia.outputPath"] = outputPath
+                processorOptions["spia.apiClient"] = "axios"
+                incremental = false
+            }
+        }
+
+        val result = compilation.compile()
+        assertEquals(
+            KotlinCompilation.ExitCode.OK,
+            result.exitCode,
+            "compilation should succeed with sealed hierarchy"
+        )
+
+        assertTrue(File(outputPath).exists(), "SDK file not generated")
+        val sdk = File(outputPath).readText()
+
+        // The sealed union type alias must be emitted
+        assertTrue(sdk.contains("type Shape ="), "Shape discriminated union type alias missing")
+
+        // Each subtype interface must be emitted
+        assertTrue(sdk.contains("interface Circle"), "Circle interface missing")
+        assertTrue(sdk.contains("interface Square"), "Square interface missing")
+        assertTrue(sdk.contains("interface Triangle"), "Triangle interface missing")
+
+        // Discriminator literals must appear
+        assertTrue(sdk.contains("'circle'"), "discriminator literal 'circle' missing")
+        assertTrue(sdk.contains("'square'"), "discriminator literal 'square' missing")
+        assertTrue(sdk.contains("'triangle'"), "discriminator literal 'triangle' missing")
+
+        // The intersection form with the discriminator property must be present
+        assertTrue(sdk.contains("kind"), "discriminator property 'kind' missing from union")
+
+        // Subtype interfaces must not also appear as stand-alone DTO interfaces outside the union block
+        // (they should be declared exactly once, inline inside renderSealedUnion)
+        assertFalse(sdk.contains("interface Shape {"), "Shape should be a type alias, not an interface")
+    }
+
+    @Test
     fun `EC-10 Jackson annotations - JsonProperty renames field, JsonAlias emits jsdoc, JsonInclude marks optional`(@TempDir tempDir: File) {
         val outputPath = File(tempDir, "generated/api-sdk.ts").absolutePath
 

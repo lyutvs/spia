@@ -4,9 +4,11 @@ import com.google.devtools.ksp.symbol.ClassKind
 import com.google.devtools.ksp.symbol.KSClassDeclaration
 import com.google.devtools.ksp.symbol.KSType
 import com.google.devtools.ksp.symbol.KSTypeParameter
+import com.google.devtools.ksp.symbol.Modifier
 import com.google.devtools.ksp.symbol.Nullability
 import io.spia.processor.model.FieldInfo
 import io.spia.processor.model.SdkConfig
+import io.spia.processor.model.SealedSubtype
 import io.spia.processor.model.TypeInfo
 
 class TypeResolver(private val config: SdkConfig) {
@@ -19,10 +21,12 @@ class TypeResolver(private val config: SdkConfig) {
     private val resolvedDtos = mutableMapOf<String, TypeInfo.Dto>()
     private val resolvedEnums = mutableMapOf<String, TypeInfo.Enum>()
     private val resolvedGenerics = mutableMapOf<String, TypeInfo.Generic>()
+    private val resolvedSealedUnions = mutableMapOf<String, TypeInfo.SealedUnion>()
 
     fun allDtos(): Collection<TypeInfo.Dto> = resolvedDtos.values
     fun allEnums(): Collection<TypeInfo.Enum> = resolvedEnums.values
     fun allGenerics(): Collection<TypeInfo.Generic> = resolvedGenerics.values
+    fun allSealedUnions(): Collection<TypeInfo.SealedUnion> = resolvedSealedUnions.values
 
     /**
      * Pass 1: pre-register all custom types reachable from [ksType] so that TS names
@@ -78,9 +82,16 @@ class TypeResolver(private val config: SdkConfig) {
             enumNameMap[fqn] = assignedName
         } else {
             dtoNameMap[fqn] = assignedName
-            // Recurse into field types for transitive DTO discovery.
-            declaration.getAllProperties().forEach { prop ->
-                preRegisterRec(prop.type.resolve(), visited)
+            if (Modifier.SEALED in declaration.modifiers) {
+                // Pre-register all sealed subclasses so their names are resolved before any usage.
+                declaration.getSealedSubclasses().forEach { subDecl ->
+                    subDecl.asStarProjectedType().let { preRegisterRec(it, visited) }
+                }
+            } else {
+                // Recurse into field types for transitive DTO discovery.
+                declaration.getAllProperties().forEach { prop ->
+                    preRegisterRec(prop.type.resolve(), visited)
+                }
             }
         }
     }
@@ -172,6 +183,38 @@ class TypeResolver(private val config: SdkConfig) {
         }
 
         val fqn = declaration.qualifiedName?.asString() ?: declaration.simpleName.asString()
+
+        // Detect sealed class hierarchy and render as discriminated union.
+        if (Modifier.SEALED in declaration.modifiers) {
+            resolvedSealedUnions[fqn]?.let { return it }
+
+            val tsName = dtoNameMap[fqn] ?: declaration.simpleName.asString()
+            val discriminator = JacksonAnnotationReader.sealedDiscriminator(declaration)
+
+            val subtypes = declaration.getSealedSubclasses().map { subDecl ->
+                val tag = JacksonAnnotationReader.sealedTypeName(subDecl)
+                // Resolve the subclass as a Dto so its fields are also registered.
+                val subFqn = subDecl.qualifiedName?.asString() ?: subDecl.simpleName.asString()
+                val subTsName = dtoNameMap[subFqn] ?: subDecl.simpleName.asString()
+                val subFields = subDecl.getAllProperties().map { prop ->
+                    val propName = prop.simpleName.asString()
+                    FieldInfo(
+                        name = propName,
+                        type = resolve(prop.type.resolve()),
+                        serializedName = JacksonAnnotationReader.renamedTo(prop) ?: propName,
+                        aliases = JacksonAnnotationReader.aliases(prop),
+                        excludeWhenNull = JacksonAnnotationReader.excludeWhenNull(prop),
+                    )
+                }.toList()
+                val dto = TypeInfo.Dto(subTsName, subFields)
+                resolvedDtos[subFqn] = dto
+                SealedSubtype(dto = dto, tag = if (discriminator != null) tag else null)
+            }.toList()
+
+            val sealedUnion = TypeInfo.SealedUnion(name = tsName, subtypes = subtypes, discriminator = discriminator)
+            resolvedSealedUnions[fqn] = sealedUnion
+            return sealedUnion
+        }
 
         if (declaration.classKind == ClassKind.ENUM_CLASS) {
             resolvedEnums[fqn]?.let { return it }

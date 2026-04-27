@@ -6,6 +6,8 @@
 
 ## Generated SDK shape changes
 
+- Kotlin `sealed class` annotated with `@JsonTypeInfo(use=NAME, property="…")` is now emitted as a TypeScript discriminated union (`type Shape = ({ kind: 'circle' } & Circle) | …`) instead of requiring a manual nullable-field DTO workaround.
+
 ## Annotations newly recognized
 
 ## Breaking changes

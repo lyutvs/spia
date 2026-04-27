@@ -23,5 +23,24 @@ fun jacksonStubs(): SourceFile = SourceFile.kotlin(
             ALWAYS, NON_NULL, NON_ABSENT, NON_EMPTY, NON_DEFAULT, CUSTOM, USE_DEFAULTS
         }
     }
+
+    @Target(AnnotationTarget.CLASS)
+    annotation class JsonTypeInfo(
+        val use: Id = Id.NONE,
+        val include: As = As.PROPERTY,
+        val property: String = "",
+    ) {
+        enum class Id { NONE, CLASS, MINIMAL_CLASS, NAME, DEDUCTION, CUSTOM }
+        enum class As { PROPERTY, WRAPPER_OBJECT, WRAPPER_ARRAY, EXTERNAL_PROPERTY, EXISTING_PROPERTY }
+    }
+
+    @Target(AnnotationTarget.CLASS)
+    annotation class JsonTypeName(val value: String = "")
+
+    @Target(AnnotationTarget.CLASS)
+    annotation class JsonSubTypes(vararg val value: Type) {
+        @Target(AnnotationTarget.ANNOTATION_CLASS)
+        annotation class Type(val value: kotlin.reflect.KClass<*>, val name: String = "")
+    }
     """.trimIndent()
 )

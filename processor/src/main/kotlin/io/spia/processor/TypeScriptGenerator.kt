@@ -1,6 +1,7 @@
 package io.spia.processor
 
 import io.spia.processor.model.*
+import io.spia.processor.model.SealedSubtype
 
 class TypeScriptGenerator(private val config: SdkConfig) {
 
@@ -19,8 +20,9 @@ class TypeScriptGenerator(private val config: SdkConfig) {
         val dtos = typeResolver.allDtos()
         val enums = typeResolver.allEnums()
         val generics = typeResolver.allGenerics()
+        val sealedUnions = typeResolver.allSealedUnions()
 
-        if (dtos.isNotEmpty() || enums.isNotEmpty() || generics.isNotEmpty()) {
+        if (dtos.isNotEmpty() || enums.isNotEmpty() || generics.isNotEmpty() || sealedUnions.isNotEmpty()) {
             sb.appendLine("/* ──────────── DTO Types ──────────── */")
             sb.appendLine()
         }
@@ -30,7 +32,17 @@ class TypeScriptGenerator(private val config: SdkConfig) {
             sb.appendLine()
         }
 
-        for (dto in dtos.sortedBy { it.name }) {
+        // Sealed union subtype DTOs are emitted individually (interfaces), then the union type alias.
+        // Track which DTO names were already emitted as part of a sealed union so we skip them in
+        // the flat DTO loop (they may also have been registered in resolvedDtos by the resolver).
+        val sealedSubtypeDtoNames = sealedUnions.flatMap { it.subtypes.map { s -> s.dto.name } }.toSet()
+
+        for (sealedUnion in sealedUnions.sortedBy { it.name }) {
+            sb.append(renderSealedUnion(sealedUnion))
+            sb.appendLine()
+        }
+
+        for (dto in dtos.filter { it.name !in sealedSubtypeDtoNames }.sortedBy { it.name }) {
             sb.append(renderDto(dto))
             sb.appendLine()
         }
@@ -78,6 +90,28 @@ class TypeScriptGenerator(private val config: SdkConfig) {
         return sb.toString()
     }
 
+    private fun renderSealedUnion(sealedUnion: TypeInfo.SealedUnion): String {
+        val sb = StringBuilder()
+        // First emit each subtype's interface definition.
+        for (subtype in sealedUnion.subtypes) {
+            sb.append(renderDto(subtype.dto))
+        }
+        // Then emit the union type alias.
+        if (sealedUnion.discriminator != null) {
+            // Discriminated union: each member is intersected with the literal discriminator object.
+            val members = sealedUnion.subtypes.joinToString(" | ") { st ->
+                val tag = st.tag ?: st.dto.name
+                "({ ${sealedUnion.discriminator}: '${tag}' } & ${st.dto.name})"
+            }
+            sb.appendLine("export type ${sealedUnion.name} = $members;")
+        } else {
+            // Nominal union: simple A | B | C without discriminator literals.
+            val members = sealedUnion.subtypes.joinToString(" | ") { it.dto.name }
+            sb.appendLine("export type ${sealedUnion.name} = $members;")
+        }
+        return sb.toString()
+    }
+
     private fun renderField(sb: StringBuilder, field: FieldInfo) {
         if (field.aliases.isNotEmpty()) {
             sb.appendLine("  /** @alias ${field.aliases.joinToString(", ")} */")
@@ -111,6 +145,7 @@ class TypeScriptGenerator(private val config: SdkConfig) {
             }
         }
         is TypeInfo.TypeParameter -> type.name
+        is TypeInfo.SealedUnion -> type.name
     }
 
     private fun renderGenericInterface(generic: TypeInfo.Generic): String {
