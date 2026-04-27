@@ -283,6 +283,8 @@ cd app/frontend && npm run integration   # hit the running server via the SDK
 
 See `docs/RELEASING.md` for the Maven Central release procedure and
 `docs/samples/mavenlocal-consumer/` for the dry-run consumer sample.
+See `docs/configuration-cache.md` for Gradle Configuration Cache and
+incremental build compatibility notes.
 
 ## License
 
