@@ -26,11 +26,13 @@ class TypeResolver(private val config: SdkConfig) {
     private val resolvedEnums = mutableMapOf<String, TypeInfo.Enum>()
     private val resolvedGenerics = mutableMapOf<String, TypeInfo.Generic>()
     private val resolvedSealedUnions = mutableMapOf<String, TypeInfo.SealedUnion>()
+    private val resolvedValueClasses = mutableMapOf<String, TypeInfo.ValueClass>()
 
     fun allDtos(): Collection<TypeInfo.Dto> = resolvedDtos.values
     fun allEnums(): Collection<TypeInfo.Enum> = resolvedEnums.values
     fun allGenerics(): Collection<TypeInfo.Generic> = resolvedGenerics.values
     fun allSealedUnions(): Collection<TypeInfo.SealedUnion> = resolvedSealedUnions.values
+    fun allValueClasses(): Collection<TypeInfo.ValueClass> = resolvedValueClasses.values
 
     /**
      * Pass 1: pre-register all custom types reachable from [ksType] so that TS names
@@ -256,6 +258,18 @@ class TypeResolver(private val config: SdkConfig) {
             val sealedUnion = TypeInfo.SealedUnion(name = tsName, subtypes = subtypes, discriminator = discriminator)
             resolvedSealedUnions[fqn] = sealedUnion
             return sealedUnion
+        }
+
+        // Detect Kotlin value class (also covers legacy `inline class`).
+        if (Modifier.VALUE in declaration.modifiers || Modifier.INLINE in declaration.modifiers) {
+            resolvedValueClasses[fqn]?.let { return it }
+            val tsName = dtoNameMap[fqn] ?: declaration.simpleName.asString()
+            val underlyingProp = declaration.getAllProperties().firstOrNull()
+            val underlying = if (underlyingProp != null) resolve(underlyingProp.type.resolve())
+                             else TypeInfo.Primitive("unknown")
+            val valueClass = TypeInfo.ValueClass(name = tsName, underlying = underlying)
+            resolvedValueClasses[fqn] = valueClass
+            return valueClass
         }
 
         if (declaration.classKind == ClassKind.ENUM_CLASS) {

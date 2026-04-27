@@ -34,14 +34,20 @@ class TypeScriptGenerator(private val config: SdkConfig, private val logger: KSP
         val enums = typeResolver.allEnums()
         val generics = typeResolver.allGenerics()
         val sealedUnions = typeResolver.allSealedUnions()
+        val valueClasses = typeResolver.allValueClasses()
 
-        if (dtos.isNotEmpty() || enums.isNotEmpty() || generics.isNotEmpty() || sealedUnions.isNotEmpty()) {
+        if (dtos.isNotEmpty() || enums.isNotEmpty() || generics.isNotEmpty() || sealedUnions.isNotEmpty() || valueClasses.isNotEmpty()) {
             sb.appendLine("/* ──────────── DTO Types ──────────── */")
             sb.appendLine()
         }
 
         for (enumInfo in enums.sortedBy { it.name }) {
             sb.append(renderEnum(enumInfo))
+            sb.appendLine()
+        }
+
+        for (valueClass in valueClasses.sortedBy { it.name }) {
+            sb.append(renderValueClass(valueClass))
             sb.appendLine()
         }
 
@@ -113,6 +119,16 @@ class TypeScriptGenerator(private val config: SdkConfig, private val logger: KSP
                 sb.appendLine("}")
             }
         }
+        return sb.toString()
+    }
+
+    private fun renderValueClass(valueClass: TypeInfo.ValueClass): String {
+        val sb = StringBuilder()
+        val underlyingTs = renderType(valueClass.underlying)
+        // Branded type: underlying & { readonly __brand: 'Name' }
+        sb.appendLine("export type ${valueClass.name} = $underlyingTs & { readonly __brand: '${valueClass.name}' };")
+        // Constructor helper: const Name = (raw: underlyingTs): Name => raw as Name
+        sb.appendLine("export const ${valueClass.name} = (raw: $underlyingTs): ${valueClass.name} => raw as ${valueClass.name};")
         return sb.toString()
     }
 
@@ -192,6 +208,7 @@ class TypeScriptGenerator(private val config: SdkConfig, private val logger: KSP
         is TypeInfo.TypeParameter -> type.name
         is TypeInfo.SealedUnion -> type.name
         is TypeInfo.StreamType -> "AsyncIterable<${renderType(type.item)}>"
+        is TypeInfo.ValueClass -> type.name
     }
 
     private fun renderGenericInterface(generic: TypeInfo.Generic): String {

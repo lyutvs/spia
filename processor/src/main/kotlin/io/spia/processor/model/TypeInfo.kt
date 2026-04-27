@@ -46,6 +46,18 @@ sealed class TypeInfo {
         override val nullable: Boolean = false,
     ) : TypeInfo()
 
+    /**
+     * A Kotlin `value class` (or `inline class`) rendered as a TypeScript branded type.
+     *
+     * @param name       The TypeScript type alias name (simple class name).
+     * @param underlying The resolved [TypeInfo] of the single wrapped property.
+     */
+    data class ValueClass(
+        val name: String,
+        val underlying: TypeInfo,
+        override val nullable: Boolean = false,
+    ) : TypeInfo()
+
     fun withNullable(nullable: Boolean): TypeInfo = when (this) {
         is Primitive -> copy(nullable = nullable)
         is Array -> copy(nullable = nullable)
@@ -57,6 +69,7 @@ sealed class TypeInfo {
         is TypeParameter -> copy(nullable = nullable)
         is SealedUnion -> copy(nullable = nullable)
         is StreamType -> copy(nullable = nullable)
+        is ValueClass -> copy(nullable = nullable)
     }
 }
 

@@ -25,3 +25,5 @@
 - `ResponseEntity<Resource>` (file download endpoints) now emits as `Promise<Blob>`.
 
 ## Breaking changes
+
+- Kotlin `value class` / `inline class` types are now emitted as branded TypeScript types (`type UserId = string & { readonly __brand: 'UserId' }`) with a constructor helper instead of being flattened to their underlying primitive.

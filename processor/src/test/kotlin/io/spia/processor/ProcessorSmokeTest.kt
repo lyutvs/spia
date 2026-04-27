@@ -1394,4 +1394,73 @@ class ProcessorSmokeTest {
         assertTrue(sdk.contains("options?.baseUrl ??"), "baseUrl fallback chain missing")
     }
 
+    @Test
+    fun `EC-11 Kotlin value class emitted as branded TS type with constructor helper`(@TempDir tempDir: File) {
+        val outputPath = File(tempDir, "generated/api-sdk.ts").absolutePath
+
+        val source = SourceFile.kotlin(
+            "ValueClassController.kt",
+            """
+            package test
+
+            import org.springframework.web.bind.annotation.RestController
+            import org.springframework.web.bind.annotation.GetMapping
+            import org.springframework.web.bind.annotation.RequestMapping
+            import org.springframework.web.bind.annotation.PathVariable
+
+            @JvmInline
+            value class UserId(val raw: String)
+
+            data class UserDto(val id: UserId, val name: String)
+
+            @RestController
+            @RequestMapping("/api/ec11")
+            class ValueClassController {
+                @GetMapping("/users/{id}")
+                fun getUser(@PathVariable id: String): UserDto =
+                    UserDto(id = UserId(id), name = "stub")
+            }
+            """.trimIndent()
+        )
+
+        val compilation = KotlinCompilation().apply {
+            sources = listOf(source, coreSpringStubs())
+            inheritClassPath = true
+            messageOutputStream = System.out
+            configureKsp {
+                symbolProcessorProviders.add(SpiaProcessorProvider())
+                processorOptions["spia.outputPath"] = outputPath
+                processorOptions["spia.apiClient"] = "axios"
+                incremental = false
+            }
+        }
+
+        val result = compilation.compile()
+        assertEquals(
+            KotlinCompilation.ExitCode.OK,
+            result.exitCode,
+            "compilation should succeed with a value class in the controller"
+        )
+
+        assertTrue(File(outputPath).exists(), "SDK file not generated")
+        val sdk = File(outputPath).readText()
+
+        // Branded type definition must be present
+        assertTrue(sdk.contains("__brand"), "branded type __brand token missing from SDK")
+        assertTrue(
+            sdk.contains("type UserId = string & { readonly __brand: 'UserId' }"),
+            "branded type alias for UserId missing: $sdk"
+        )
+
+        // Constructor helper arrow function must be present
+        assertTrue(
+            sdk.contains("const UserId = (raw: string): UserId => raw as UserId"),
+            "constructor helper for UserId missing: $sdk"
+        )
+
+        // UserDto interface must reference UserId as branded type (not raw string)
+        assertTrue(sdk.contains("interface UserDto"), "UserDto interface missing")
+        assertTrue(sdk.contains("id: UserId"), "UserDto.id should reference UserId branded type")
+    }
+
 }

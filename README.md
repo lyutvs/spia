@@ -361,6 +361,35 @@ export interface UserDto {
 }
 ```
 
+## Kotlin value classes
+
+SPIA emits Kotlin `value class` (annotated with `@JvmInline`) as a TypeScript **branded type**,
+preserving compile-time type safety that would otherwise be lost if the underlying primitive were used directly.
+
+For example:
+
+```kotlin
+@JvmInline
+value class UserId(val raw: String)
+
+data class UserDto(val id: UserId, val name: String)
+```
+
+generates:
+
+```typescript
+export type UserId = string & { readonly __brand: 'UserId' };
+export const UserId = (raw: string): UserId => raw as UserId;
+
+export interface UserDto {
+  id: UserId;
+  name: string;
+}
+```
+
+The branded type ensures that a plain `string` cannot be accidentally passed where a `UserId` is expected.
+The constructor helper (`const UserId = ...`) lets callers wrap a raw value ergonomically: `UserId('abc-123')`.
+
 ## Java support (minimum)
 
 SPIA supports Java `@RestController` classes and plain Java POJOs (JavaBeans) as of v0.4.
