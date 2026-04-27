@@ -8,6 +8,8 @@ import com.tschuchort.compiletesting.SourceFile
 import com.tschuchort.compiletesting.configureKsp
 import com.tschuchort.compiletesting.kspProcessorOptions
 import com.tschuchort.compiletesting.symbolProcessorProviders
+import io.spia.processor.test_support.coreSpringStubs
+import io.spia.processor.test_support.parameterStubs
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.io.TempDir
 import java.io.File
@@ -43,7 +45,7 @@ class ProcessorSmokeTest {
         )
 
         val compilation = KotlinCompilation().apply {
-            sources = listOf(source, springStubs())
+            sources = listOf(source, coreSpringStubs())
             inheritClassPath = true
             messageOutputStream = System.out
             configureKsp {
@@ -88,7 +90,7 @@ class ProcessorSmokeTest {
         )
 
         val compilation = KotlinCompilation().apply {
-            sources = listOf(source, springStubs())
+            sources = listOf(source, coreSpringStubs())
             inheritClassPath = true
             messageOutputStream = System.out
             configureKsp {
@@ -145,7 +147,7 @@ class ProcessorSmokeTest {
         )
 
         val compilation = KotlinCompilation().apply {
-            sources = listOf(source, springStubs())
+            sources = listOf(source, coreSpringStubs())
             inheritClassPath = true
             messageOutputStream = System.out
             configureKsp {
@@ -199,7 +201,7 @@ class ProcessorSmokeTest {
         )
 
         val compilation = KotlinCompilation().apply {
-            sources = listOf(source, springStubs())
+            sources = listOf(source, coreSpringStubs())
             inheritClassPath = true
             messageOutputStream = System.out
             configureKsp {
@@ -250,7 +252,7 @@ class ProcessorSmokeTest {
         )
 
         val compilation = KotlinCompilation().apply {
-            sources = listOf(source, springStubs(), multipartFileStub())
+            sources = listOf(source, coreSpringStubs(), parameterStubs())
             inheritClassPath = true
             messageOutputStream = System.out
             configureKsp {
@@ -299,7 +301,7 @@ class ProcessorSmokeTest {
         )
 
         val compilation = KotlinCompilation().apply {
-            sources = listOf(source, springStubs())
+            sources = listOf(source, coreSpringStubs())
             inheritClassPath = true
             messageOutputStream = System.out
             configureKsp {
@@ -350,7 +352,7 @@ class ProcessorSmokeTest {
         )
 
         val compilation = KotlinCompilation().apply {
-            sources = listOf(source, springStubs(), multipartFileStub())
+            sources = listOf(source, coreSpringStubs(), parameterStubs())
             inheritClassPath = true
             messageOutputStream = System.out
             configureKsp {
@@ -420,7 +422,7 @@ class ProcessorSmokeTest {
         )
 
         val compilation = KotlinCompilation().apply {
-            sources = listOf(source, springStubs())
+            sources = listOf(source, coreSpringStubs())
             inheritClassPath = true
             messageOutputStream = System.out
             configureKsp {
@@ -468,40 +470,4 @@ class ProcessorSmokeTest {
         assertFalse(sdk.contains("(() => { const _p = new URLSearchParams"), "legacy IIFE query form leaked into TS output")
     }
 
-    private fun multipartFileStub(): SourceFile = SourceFile.kotlin(
-        "MultipartFileStub.kt",
-        """
-        package org.springframework.web.multipart
-
-        interface MultipartFile {
-            fun getOriginalFilename(): String?
-            fun getBytes(): ByteArray
-        }
-        """.trimIndent()
-    )
-
-    private fun springStubs(): SourceFile = SourceFile.kotlin(
-        "SpringStubs.kt",
-        """
-        package org.springframework.web.bind.annotation
-
-        @Target(AnnotationTarget.CLASS) annotation class RestController
-        @Target(AnnotationTarget.CLASS, AnnotationTarget.FUNCTION)
-        annotation class RequestMapping(val value: String = "", val method: Array<String> = [])
-        @Target(AnnotationTarget.FUNCTION) annotation class GetMapping(val value: String = "")
-        @Target(AnnotationTarget.FUNCTION) annotation class PostMapping(val value: String = "")
-        @Target(AnnotationTarget.FUNCTION) annotation class PutMapping(val value: String = "")
-        @Target(AnnotationTarget.FUNCTION) annotation class DeleteMapping(val value: String = "")
-        @Target(AnnotationTarget.FUNCTION) annotation class PatchMapping(val value: String = "")
-        @Target(AnnotationTarget.VALUE_PARAMETER) annotation class PathVariable(val value: String = "", val name: String = "")
-        @Target(AnnotationTarget.VALUE_PARAMETER) annotation class RequestParam(
-            val value: String = "",
-            val required: Boolean = true,
-            val defaultValue: String = ""
-        )
-        @Target(AnnotationTarget.VALUE_PARAMETER) annotation class RequestBody
-        @Target(AnnotationTarget.VALUE_PARAMETER) annotation class RequestHeader(val value: String = "", val name: String = "")
-        @Target(AnnotationTarget.VALUE_PARAMETER) annotation class RequestPart(val value: String = "", val name: String = "")
-        """.trimIndent()
-    )
 }

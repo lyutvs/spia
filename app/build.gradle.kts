@@ -17,6 +17,11 @@ dependencies {
     // plugin's auto-add detects this and skips injecting the Maven coord.
     // External consumers don't need this line; the plugin adds the processor for them.
     ksp(project(":processor"))
+
+    // Dependency stubs reserved for upcoming tasks — uncomment when the task lands:
+    // implementation("org.springframework.boot:spring-boot-starter-validation") // task 04 (Bean Validation)
+    // compileOnly("org.springframework.boot:spring-boot-starter-webflux")       // task 05 (Reactive/WebFlux)
+    // implementation("com.fasterxml.jackson.module:jackson-module-kotlin")      // task 13 (Jackson customization)
 }
 
 kotlin {
