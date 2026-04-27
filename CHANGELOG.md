@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-04-27
+
 ### Changed
 
 - **Breaking (toolchain)** — Minimum Kotlin raised to **2.3.x** (from 2.1.x). Consumers must upgrade their Kotlin plugin version accordingly.
@@ -147,6 +149,7 @@ v0.1.0 consumers depending on `interface Any {}` or `field?: T` rendering must u
 - `ProblemDetail` / RFC 9457 error bodies are not emitted.
 - `@JsonProperty` / `@JsonAlias` name overrides are ignored.
 
-[Unreleased]: https://github.com/lyutvs/spia/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/lyutvs/spia/compare/v0.3.0...HEAD
+[0.3.0]: https://github.com/lyutvs/spia/releases/tag/v0.3.0
 [0.2.0]: https://github.com/lyutvs/spia/releases/tag/v0.2.0
 [0.1.0]: https://github.com/lyutvs/spia/releases/tag/v0.1.0
