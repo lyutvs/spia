@@ -58,8 +58,9 @@ SPIA is deliberately narrow. Reach for `openapi-generator` or
   or contract-first workflows.
 - **Bean Validation reflected in the generated SDK** — `@Valid`, `@Size`,
   `@NotNull` carried through to the frontend types.
-- **A Java-only backend** — SPIA is currently Kotlin-only. Java support is
-  on the roadmap.
+- **A Java-only backend with Lombok** — Lombok-generated getters are not visible
+  to KSP at annotation-processing time; Lombok POJOs will be emitted as empty interfaces.
+  Plain Java POJOs (no Lombok) are supported.
 
 For everything else — a Kotlin Spring Boot backend talking to a TypeScript
 frontend — SPIA is the shortest path.
@@ -355,3 +356,18 @@ export interface UserDto {
   bio?: string | null;
 }
 ```
+
+## Java support (minimum)
+
+SPIA supports Java `@RestController` classes and plain Java POJOs (JavaBeans) as of v0.4.
+
+### What works
+
+- Java `@RestController` / `@RequestMapping` / `@GetMapping` etc. are recognized by their fully-qualified annotation names — the same as Kotlin.
+- Plain Java POJO fields are discovered from public getter methods following the JavaBeans convention (`getXxx()` → `xxx`, `isXxx()` → `xxx`).
+- Nullable detection: a getter annotated with `@org.jetbrains.annotations.Nullable` or `@jakarta.annotation.Nullable` is emitted as `T | null`.
+
+### Known limitations (P-13)
+
+- **Lombok-generated getters are not supported.** KSP processes Java source before Lombok's annotation processor generates accessor methods. As a result, Lombok `@Data` / `@Getter` POJOs will be emitted as empty interfaces. Use plain Java POJOs (field + constructor + explicit getters) with SPIA, or switch to Kotlin data classes.
+- Kotlin-only features (value classes, sealed unions) are not applicable to Java sources.

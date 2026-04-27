@@ -2,9 +2,17 @@
 
 /* ──────────── DTO Types ──────────── */
 
-export type NotificationLevel = 'INFO' | 'WARN' | 'ERROR';
-
-export type UserRole = 'ADMIN' | 'USER' | 'GUEST';
+export interface Circle {
+  radius: number;
+}
+export interface Square {
+  side: number;
+}
+export interface Triangle {
+  base: number;
+  height: number;
+}
+export type Shape = ({ kind: 'circle' } & Circle) | ({ kind: 'square' } & Square) | ({ kind: 'triangle' } & Triangle);
 
 export interface Address {
   street: string;
@@ -12,65 +20,29 @@ export interface Address {
   zipCode: string;
 }
 
-export interface AuditResult {
-}
-
 export interface CreateUserRequest {
   name: string;
   email: string;
 }
 
-export interface MixedRequest {
-  message: string;
-  priority: number;
-  tags: string[];
-}
-
-export interface NestedItem {
-  id: string;
+export interface EcJavaDto {
   name: string;
-  value: number;
+  score: number;
 }
 
-export interface NullableDto {
-  name: string;
-  nickname: string | null;
-  age: number | null;
+export interface JacksonUserRequest {
+  userName: string;
+  bio: string | null;
 }
 
-export interface PatchBody {
-  title: string;
-  content: string;
-}
-
-export interface PostBody {
-  title: string;
-  content: string;
-}
-
-export interface PutBody {
-  title: string;
-  content: string;
-}
-
-export interface Reportable {
-  title: string;
-}
-
-export interface RoleRequest {
-  role: UserRole;
+export interface JacksonUserResponse {
+  userName: string;
+  bio: string | null;
 }
 
 export interface UpdateUserRequest {
   email: string | null;
   bio: string | null;
-}
-
-export interface UserDocument {
-  id: number;
-  createdAt: string;
-  name: string;
-  email: string;
 }
 
 export interface UserProfileDto {
@@ -87,16 +59,6 @@ export interface ApiResponse<D, E> {
   success: boolean;
 }
 
-export interface GenericWrapper<T> {
-  payload: T | null;
-  meta: string;
-}
-
-export interface NullableGenericWrapper<T> {
-  data: T | null;
-  error: string | null;
-}
-
 export interface Page<T> {
   content: T[];
   totalElements: number;
@@ -108,243 +70,49 @@ export interface Page<T> {
 
 export function createApi(baseUrl: string) {
   return {
-    ecEnum: {
-      /**
-       * POST /sandbox/ec04/role
-  Accepts a body with a UserRole and returns a list of all roles.
-       */
-      getRole: async (request: RoleRequest): Promise<UserRole[]> => {
-        const res = await fetch(`${baseUrl}/sandbox/ec04/role`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(request) });
+    ecJackson: {
+      createUser: async (request: JacksonUserRequest): Promise<JacksonUserResponse> => {
+        const res = await fetch(`${baseUrl}/api/ec-jackson/users`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(request) });
         if (!res.ok) throw new Error(`SPIA POST ${res.url} failed: ${res.status} ${res.statusText}`);
         return res.json();
       },
 
-      /**
-       * GET /sandbox/ec04/notification/{level}
-  Accepts a NotificationLevel path variable and returns the level.
-       */
-      getNotification: async (level: NotificationLevel): Promise<NotificationLevel> => {
-        const res = await fetch(`${baseUrl}/sandbox/ec04/notification/${encodeURIComponent(String(level))}`, { method: 'GET' });
+      sampleUser: async (): Promise<JacksonUserResponse> => {
+        const res = await fetch(`${baseUrl}/api/ec-jackson/users/sample`, { method: 'GET' });
         if (!res.ok) throw new Error(`SPIA GET ${res.url} failed: ${res.status} ${res.statusText}`);
         return res.json();
       },
 
     },
-    ecHttpMethods: {
-      /**
-       * GET /sandbox/ec09/get
-       */
-      getItem: async (): Promise<string> => {
-        const res = await fetch(`${baseUrl}/sandbox/ec09/get`, { method: 'GET' });
+    ecJava: {
+      get: async (name: string): Promise<EcJavaDto> => {
+        const res = await fetch(`${baseUrl}/api/ec-java/${encodeURIComponent(String(name))}`, { method: 'GET' });
         if (!res.ok) throw new Error(`SPIA GET ${res.url} failed: ${res.status} ${res.statusText}`);
         return res.json();
       },
 
-      /**
-       * POST /sandbox/ec09/post
-       */
-      postItem: async (body: PostBody): Promise<string> => {
-        const res = await fetch(`${baseUrl}/sandbox/ec09/post`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
-        if (!res.ok) throw new Error(`SPIA POST ${res.url} failed: ${res.status} ${res.statusText}`);
-        return res.json();
-      },
-
-      /**
-       * PUT /sandbox/ec09/put/{id}
-       */
-      putItem: async (id: number, body: PutBody): Promise<string> => {
-        const res = await fetch(`${baseUrl}/sandbox/ec09/put/${encodeURIComponent(String(id))}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
-        if (!res.ok) throw new Error(`SPIA PUT ${res.url} failed: ${res.status} ${res.statusText}`);
-        return res.json();
-      },
-
-      /**
-       * DELETE /sandbox/ec09/delete/{id}
-       */
-      deleteItem: async (id: number): Promise<void> => {
-        const res = await fetch(`${baseUrl}/sandbox/ec09/delete/${encodeURIComponent(String(id))}`, { method: 'DELETE' });
-        if (!res.ok) throw new Error(`SPIA DELETE ${res.url} failed: ${res.status} ${res.statusText}`);
-      },
-
-      /**
-       * PATCH /sandbox/ec09/patch/{id}
-       */
-      patchItem: async (id: number, body: PatchBody): Promise<string> => {
-        const res = await fetch(`${baseUrl}/sandbox/ec09/patch/${encodeURIComponent(String(id))}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
-        if (!res.ok) throw new Error(`SPIA PATCH ${res.url} failed: ${res.status} ${res.statusText}`);
-        return res.json();
-      },
-
-    },
-    ecInheritance: {
-      /**
-       * GET /sandbox/ec06/doc/{id}
-  Returns a UserDocument by id.
-       */
-      getDocument: async (id: number): Promise<UserDocument> => {
-        const res = await fetch(`${baseUrl}/sandbox/ec06/doc/${encodeURIComponent(String(id))}`, { method: 'GET' });
-        if (!res.ok) throw new Error(`SPIA GET ${res.url} failed: ${res.status} ${res.statusText}`);
-        return res.json();
-      },
-
-      /**
-       * POST /sandbox/ec06/doc
-  Accepts a UserDocument in the request body.
-       */
-      createDocument: async (body: UserDocument): Promise<UserDocument> => {
-        const res = await fetch(`${baseUrl}/sandbox/ec06/doc`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+      create: async (dto: EcJavaDto): Promise<EcJavaDto> => {
+        const res = await fetch(`${baseUrl}/api/ec-java`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(dto) });
         if (!res.ok) throw new Error(`SPIA POST ${res.url} failed: ${res.status} ${res.statusText}`);
         return res.json();
       },
 
     },
-    ecMultipart: {
-      /**
-       * Upload a single file with a description.
-       */
-      upload: async (file: File | Blob, description: string): Promise<{ [key: string]: string }> => {
-        const formData = new FormData();
-        formData.append('file', file);
-        const res = await fetch(`${baseUrl}/sandbox/ec03/upload?description=${encodeURIComponent(String(description))}`, { method: 'POST', body: formData });
-        if (!res.ok) throw new Error(`SPIA POST ${res.url} failed: ${res.status} ${res.statusText}`);
-        return res.json();
-      },
-
-      /**
-       * Upload multiple files at once.
-       */
-      multiUpload: async (files: (File | Blob)[]): Promise<{ [key: string]: number }> => {
-        const formData = new FormData();
-        files.forEach(f => formData.append('files', f));
-        const res = await fetch(`${baseUrl}/sandbox/ec03/multi-upload`, { method: 'POST', body: formData });
-        if (!res.ok) throw new Error(`SPIA POST ${res.url} failed: ${res.status} ${res.statusText}`);
-        return res.json();
-      },
-
-    },
-    ecNestedGenerics: {
-      /**
-       * GET /sandbox/ec01/nested-list-map
-  Returns a list of string-keyed maps each holding a NestedItem.
-       */
-      nestedListMap: async (): Promise<{ [key: string]: NestedItem }[]> => {
-        const res = await fetch(`${baseUrl}/sandbox/ec01/nested-list-map`, { method: 'GET' });
+    ecSealed: {
+      getCircle: async (): Promise<Shape> => {
+        const res = await fetch(`${baseUrl}/api/ec-sealed/shape/circle`, { method: 'GET' });
         if (!res.ok) throw new Error(`SPIA GET ${res.url} failed: ${res.status} ${res.statusText}`);
         return res.json();
       },
 
-      /**
-       * POST /sandbox/ec01/generic-wrapper
-  Accepts GenericWrapper<List<NestedItem>>, returns GenericWrapper<Map<String, NestedItem>>.
-       */
-      genericWrapper: async (request: GenericWrapper<NestedItem[]>): Promise<GenericWrapper<{ [key: string]: NestedItem }>> => {
-        const res = await fetch(`${baseUrl}/sandbox/ec01/generic-wrapper`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(request) });
-        if (!res.ok) throw new Error(`SPIA POST ${res.url} failed: ${res.status} ${res.statusText}`);
-        return res.json();
-      },
-
-      /**
-       * GET /sandbox/ec01/triple-nested
-  Returns a three-level nested structure: Map<String, List<Map<String, NestedItem>>>.
-       */
-      tripleNested: async (): Promise<{ [key: string]: { [key: string]: NestedItem }[] }> => {
-        const res = await fetch(`${baseUrl}/sandbox/ec01/triple-nested`, { method: 'GET' });
+      getSquare: async (): Promise<Shape> => {
+        const res = await fetch(`${baseUrl}/api/ec-sealed/shape/square`, { method: 'GET' });
         if (!res.ok) throw new Error(`SPIA GET ${res.url} failed: ${res.status} ${res.statusText}`);
         return res.json();
       },
 
-    },
-    ecNullable: {
-      /**
-       * GET /sandbox/ec05/dto
-  Returns a NullableDto with nullable fields.
-       */
-      getDto: async (): Promise<NullableDto> => {
-        const res = await fetch(`${baseUrl}/sandbox/ec05/dto`, { method: 'GET' });
-        if (!res.ok) throw new Error(`SPIA GET ${res.url} failed: ${res.status} ${res.statusText}`);
-        return res.json();
-      },
-
-      /**
-       * POST /sandbox/ec05/wrapper
-  Accepts a NullableGenericWrapper<NullableDto> and returns it.
-       */
-      postWrapper: async (body: NullableGenericWrapper<NullableDto>): Promise<NullableGenericWrapper<NullableDto>> => {
-        const res = await fetch(`${baseUrl}/sandbox/ec05/wrapper`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
-        if (!res.ok) throw new Error(`SPIA POST ${res.url} failed: ${res.status} ${res.statusText}`);
-        return res.json();
-      },
-
-    },
-    ecParameterKinds: {
-      /**
-       * POST /sandbox/ec07/mixed/{id}
-  Demonstrates all four parameter kinds: @PathVariable, @RequestParam,
-  @RequestHeader, and @RequestBody in a single endpoint.
-       */
-      mixedParameters: async (id: number, filter: string, traceId: string, body: MixedRequest): Promise<MixedRequest> => {
-        const res = await fetch(`${baseUrl}/sandbox/ec07/mixed/${encodeURIComponent(String(id))}?filter=${encodeURIComponent(String(filter))}`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Trace-Id': traceId }, body: JSON.stringify(body) });
-        if (!res.ok) throw new Error(`SPIA POST ${res.url} failed: ${res.status} ${res.statusText}`);
-        return res.json();
-      },
-
-    },
-    ecPathVariablePatterns: {
-      /**
-       * GET /sandbox/ec08/regex/{id:[0-9]+}
-  Single PathVariable with regex constraint — reproduces buildTsPath replace-miss bug.
-       */
-      getById: async (id: number): Promise<{ [key: string]: unknown }> => {
-        const res = await fetch(`${baseUrl}/sandbox/ec08/regex/${encodeURIComponent(String(id))}`, { method: 'GET' });
-        if (!res.ok) throw new Error(`SPIA GET ${res.url} failed: ${res.status} ${res.statusText}`);
-        return res.json();
-      },
-
-      /**
-       * GET /sandbox/ec08/multi/{userId}/items/{itemId}
-  Multiple plain PathVariables — verifies all are substituted.
-       */
-      getItem: async (userId: number, itemId: number): Promise<{ [key: string]: unknown }> => {
-        const res = await fetch(`${baseUrl}/sandbox/ec08/multi/${encodeURIComponent(String(userId))}/items/${encodeURIComponent(String(itemId))}`, { method: 'GET' });
-        if (!res.ok) throw new Error(`SPIA GET ${res.url} failed: ${res.status} ${res.statusText}`);
-        return res.json();
-      },
-
-      /**
-       * GET /sandbox/ec08/mixed-regex/{userId:[0-9]+}/items/{itemId:[a-z]+}
-  Multiple PathVariables each with a regex constraint — both replacements may fail.
-       */
-      getMixedRegex: async (userId: number, itemId: string): Promise<{ [key: string]: unknown }> => {
-        const res = await fetch(`${baseUrl}/sandbox/ec08/mixed-regex/${encodeURIComponent(String(userId))}/items/${encodeURIComponent(String(itemId))}`, { method: 'GET' });
-        if (!res.ok) throw new Error(`SPIA GET ${res.url} failed: ${res.status} ${res.statusText}`);
-        return res.json();
-      },
-
-    },
-    ecPolymorphic: {
-      /**
-       * Returns a sealed class response.
-       */
-      sealedResponse: async (): Promise<AuditResult> => {
-        const res = await fetch(`${baseUrl}/sandbox/ec02/sealed-response`, { method: 'GET' });
-        if (!res.ok) throw new Error(`SPIA GET ${res.url} failed: ${res.status} ${res.statusText}`);
-        return res.json();
-      },
-
-      /**
-       * Returns an interface response.
-       */
-      interfaceResponse: async (): Promise<Reportable> => {
-        const res = await fetch(`${baseUrl}/sandbox/ec02/interface-response`, { method: 'GET' });
-        if (!res.ok) throw new Error(`SPIA GET ${res.url} failed: ${res.status} ${res.statusText}`);
-        return res.json();
-      },
-
-      /**
-       * Returns kotlin.Any — post-fix this must resolve to Promise<unknown> in the SDK.
-       */
-      anyReturn: async (): Promise<unknown> => {
-        const res = await fetch(`${baseUrl}/sandbox/ec02/any-return`, { method: 'GET' });
+      getTriangle: async (): Promise<Shape> => {
+        const res = await fetch(`${baseUrl}/api/ec-sealed/shape/triangle`, { method: 'GET' });
         if (!res.ok) throw new Error(`SPIA GET ${res.url} failed: ${res.status} ${res.statusText}`);
         return res.json();
       },

@@ -1,5 +1,6 @@
 package io.spia.processor
 
+import com.google.devtools.ksp.symbol.ClassKind
 import com.google.devtools.ksp.symbol.KSAnnotation
 import com.google.devtools.ksp.symbol.KSClassDeclaration
 import com.google.devtools.ksp.symbol.KSFunctionDeclaration
@@ -9,6 +10,12 @@ import io.spia.processor.model.*
 class ControllerAnalyzer(private val typeResolver: TypeResolver) {
 
     fun analyze(controller: KSClassDeclaration): ControllerInfo {
+        // Controllers are always plain classes (ClassKind.CLASS) — this also accepts Java
+        // @RestController classes which KSP surfaces with the same ClassKind.
+        require(controller.classKind == ClassKind.CLASS) {
+            "ControllerAnalyzer.analyze() expects a CLASS, got ${controller.classKind} for ${controller.qualifiedName?.asString()}"
+        }
+
         val basePath = extractBasePath(controller)
         val endpoints = controller.declarations
             .filterIsInstance<KSFunctionDeclaration>()
