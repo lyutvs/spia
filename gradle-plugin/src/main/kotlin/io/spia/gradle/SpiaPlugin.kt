@@ -53,6 +53,7 @@ class SpiaPlugin : Plugin<Project> {
             }
 
             ksp.arg("spia.projectDir", project.projectDir.absolutePath)
+            ksp.arg("spia.moduleName", project.name)
             ksp.arg("spia.enumStyle", extension.enumStyle.get())
             ksp.arg("spia.longType", extension.longType.get())
             ksp.arg("spia.apiClient", extension.apiClient.get())

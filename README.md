@@ -271,6 +271,40 @@ The `spia { ... }` DSL accepts:
 | `enumStyle` | `"union"` \| `"enum"` | `"union"` | `"union"` emits `type Color = 'RED' \| 'GREEN';` ; `"enum"` emits a TS `enum`. |
 | `longType` | `"number"` \| `"string"` \| `"bigint"` | `"number"` | How Kotlin `Long` is surfaced in TS. |
 
+## Multi-module setup
+
+In a Gradle multi-project build each subproject that exposes REST controllers
+can apply the `spia` plugin independently. The recommended pattern is to give
+each module its own `outputPath` so the generated SDK files stay separate:
+
+```kotlin
+// user-service/build.gradle.kts
+spia {
+    outputPath = "../frontend/src/generated/user-api-sdk.ts"
+}
+
+// order-service/build.gradle.kts
+spia {
+    outputPath = "../frontend/src/generated/order-api-sdk.ts"
+}
+```
+
+If two modules accidentally point to the **same** `outputPath`, SPIA emits a
+KSP warning in the second module's build output and creates a
+`<outputPath>.spia-lock` sidecar file. The lockfile records one line per
+writer in `moduleName:sha256:iso8601` format so you can identify which
+modules are in conflict:
+
+```
+module-a:a1b2c3...:2026-04-27T10:00:00Z
+module-b:d4e5f6...:2026-04-27T10:01:00Z
+```
+
+The warning contains the marker `EC-10` for easy filtering in CI logs.
+No warning is emitted when the same module regenerates its own file (same
+module name, any digest) or when a new module writes content that happens to
+produce the same digest as an existing entry.
+
 ## Development
 
 Requirements: JDK 21, Node.js 18+, Gradle wrapper (bundled).
