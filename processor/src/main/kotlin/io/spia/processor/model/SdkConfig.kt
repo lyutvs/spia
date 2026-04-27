@@ -5,6 +5,7 @@ data class SdkConfig(
     val enumStyle: EnumStyle,
     val longType: LongType,
     val apiClient: ApiClient,
+    val baseUrl: String? = null,
 )
 
 enum class EnumStyle { UNION, ENUM }

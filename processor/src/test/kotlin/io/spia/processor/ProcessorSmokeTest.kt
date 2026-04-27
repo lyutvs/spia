@@ -585,7 +585,9 @@ class ProcessorSmokeTest {
         assertTrue(File(outputPath).exists(), "SDK file not generated")
         val sdk = File(outputPath).readText()
 
-        assertTrue(sdk.contains("export function createApi(baseUrl: string)"), "createApi signature missing")
+        assertTrue(sdk.contains("export function createApi(options?: ClientOptions)"), "createApi ClientOptions signature missing")
+        assertTrue(sdk.contains("export interface ClientOptions"), "ClientOptions interface missing")
+        assertTrue(sdk.contains("baseUrl?: string"), "ClientOptions.baseUrl field missing")
         assertTrue(sdk.contains("fetch("), "fetch() call missing")
         assertTrue(sdk.contains("JSON.stringify"), "JSON.stringify for POST body missing")
         assertTrue(sdk.contains("res.json()"), "res.json() call missing")
@@ -799,6 +801,100 @@ class ProcessorSmokeTest {
 
         // EcJavaDto interface must be emitted
         assertTrue(sdk.contains("EcJavaDto"), "EcJavaDto interface missing from generated SDK")
+    }
+
+    @Test
+    fun `fetch createApi emits ClientOptions interface and options parameter`(@TempDir tempDir: File) {
+        val outputPath = File(tempDir, "generated/api-sdk.ts").absolutePath
+
+        val source = SourceFile.kotlin(
+            "PingController.kt",
+            """
+            package test
+
+            import org.springframework.web.bind.annotation.RestController
+            import org.springframework.web.bind.annotation.GetMapping
+
+            @RestController
+            class PingController {
+                @GetMapping("/ping")
+                fun ping(): String = "pong"
+            }
+            """.trimIndent()
+        )
+
+        val compilation = KotlinCompilation().apply {
+            sources = listOf(source, coreSpringStubs())
+            inheritClassPath = true
+            messageOutputStream = System.out
+            configureKsp {
+                symbolProcessorProviders.add(SpiaProcessorProvider())
+                processorOptions["spia.outputPath"] = outputPath
+                processorOptions["spia.apiClient"] = "fetch"
+                incremental = false
+            }
+        }
+
+        val result = compilation.compile()
+        assertEquals(KotlinCompilation.ExitCode.OK, result.exitCode, "compilation should succeed")
+
+        assertTrue(File(outputPath).exists(), "SDK file not generated")
+        val sdk = File(outputPath).readText()
+
+        // ClientOptions interface must be emitted
+        assertTrue(sdk.contains("export interface ClientOptions"), "ClientOptions interface missing")
+        assertTrue(sdk.contains("baseUrl?: string"), "ClientOptions.baseUrl field missing")
+
+        // createApi must use options?: ClientOptions signature
+        assertTrue(sdk.contains("export function createApi(options?: ClientOptions)"), "createApi ClientOptions signature missing")
+
+        // baseUrl fallback: no buildtime baseUrl set, so falls back to ""
+        assertTrue(sdk.contains("options?.baseUrl ??"), "baseUrl fallback chain missing")
+    }
+
+    @Test
+    fun `fetch createApi baseUrl priority - buildtime config baseUrl is used when set`(@TempDir tempDir: File) {
+        val outputPath = File(tempDir, "generated/api-sdk.ts").absolutePath
+
+        val source = SourceFile.kotlin(
+            "PingController.kt",
+            """
+            package test
+
+            import org.springframework.web.bind.annotation.RestController
+            import org.springframework.web.bind.annotation.GetMapping
+
+            @RestController
+            class PingController {
+                @GetMapping("/ping")
+                fun ping(): String = "pong"
+            }
+            """.trimIndent()
+        )
+
+        val compilation = KotlinCompilation().apply {
+            sources = listOf(source, coreSpringStubs())
+            inheritClassPath = true
+            messageOutputStream = System.out
+            configureKsp {
+                symbolProcessorProviders.add(SpiaProcessorProvider())
+                processorOptions["spia.outputPath"] = outputPath
+                processorOptions["spia.apiClient"] = "fetch"
+                processorOptions["spia.clientOptions.baseUrl"] = "/api"
+                incremental = false
+            }
+        }
+
+        val result = compilation.compile()
+        assertEquals(KotlinCompilation.ExitCode.OK, result.exitCode, "compilation should succeed with buildtime baseUrl")
+
+        assertTrue(File(outputPath).exists(), "SDK file not generated")
+        val sdk = File(outputPath).readText()
+
+        // buildtime baseUrl "/api" must be baked into the fallback chain
+        assertTrue(sdk.contains("\"/api\""), "buildtime baseUrl not baked into generated SDK")
+        // options?.baseUrl takes priority over buildtime config
+        assertTrue(sdk.contains("options?.baseUrl ??"), "baseUrl fallback chain missing")
     }
 
 }

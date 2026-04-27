@@ -156,6 +156,7 @@ class SpiaProcessor(
                 "fetch" -> ApiClient.FETCH
                 else -> ApiClient.AXIOS
             },
+            baseUrl = options["spia.clientOptions.baseUrl"],
         )
     }
 }

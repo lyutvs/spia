@@ -164,10 +164,20 @@ class TypeScriptGenerator(private val config: SdkConfig) {
 
         val clientParam = when (config.apiClient) {
             ApiClient.AXIOS -> "client: AxiosInstance"
-            ApiClient.FETCH -> "baseUrl: string"
+            ApiClient.FETCH -> {
+                sb.appendLine("export interface ClientOptions {")
+                sb.appendLine("  baseUrl?: string;")
+                sb.appendLine("}")
+                sb.appendLine()
+                "options?: ClientOptions"
+            }
         }
 
         sb.appendLine("export function createApi($clientParam) {")
+        if (config.apiClient == ApiClient.FETCH) {
+            val buildtimeBase = config.baseUrl?.let { "\"${it}\"" } ?: "\"\""
+            sb.appendLine("  const _baseUrl = options?.baseUrl ?? $buildtimeBase;")
+        }
         sb.appendLine("  return {")
 
         for (controller in controllers.sortedBy { it.name }) {
@@ -377,7 +387,7 @@ class TypeScriptGenerator(private val config: SdkConfig) {
                 "\${encodeURIComponent(String(${pv.name}))}"
             }
         }
-        return "`\${baseUrl}$tsPath`"
+        return "`\${_baseUrl}$tsPath`"
     }
 
     private fun buildAxiosConfig(queryParams: List<ParameterInfo>, headerParams: List<ParameterInfo>): String {

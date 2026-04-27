@@ -57,6 +57,10 @@ class SpiaPlugin : Plugin<Project> {
             ksp.arg("spia.enumStyle", extension.enumStyle.get())
             ksp.arg("spia.longType", extension.longType.get())
             ksp.arg("spia.apiClient", extension.apiClient.get())
+
+            if (extension.clientOptions.baseUrl.isPresent) {
+                ksp.arg("spia.clientOptions.baseUrl", extension.clientOptions.baseUrl.get())
+            }
         }
     }
 

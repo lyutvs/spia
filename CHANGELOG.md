@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **BREAKING CHANGE** — `createApi` for the fetch client no longer accepts a bare `baseUrl: string` argument. The signature is now `createApi(options?: ClientOptions)` where `ClientOptions` is `{ baseUrl?: string }`. The `baseUrl` is resolved as: caller-provided `options.baseUrl` > buildtime `config.baseUrl` (set via `spia { clientOptions { baseUrl = "..." } }`) > `""`. Consumers must migrate call sites from `createApi("/api")` to `createApi({ baseUrl: "/api" })` or configure the base URL at build time via the Gradle DSL.
+
 ### Fixed
 - Multi-module `outputPath` conflict now emits a `KSPLogger.warn` when two subprojects write the same SDK file (closes EC-10). A `<outputPath>.spia-lock` sidecar tracks module name + SHA-256 digest + ISO 8601 timestamp per writer.
 
