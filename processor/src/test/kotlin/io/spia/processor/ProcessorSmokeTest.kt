@@ -10,6 +10,8 @@ import com.tschuchort.compiletesting.kspProcessorOptions
 import com.tschuchort.compiletesting.symbolProcessorProviders
 import io.spia.processor.test_support.coreSpringStubs
 import io.spia.processor.test_support.jacksonStubs
+import io.spia.processor.test_support.javaController
+import io.spia.processor.test_support.javaDto
 import io.spia.processor.test_support.parameterStubs
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.io.TempDir
@@ -760,6 +762,43 @@ class ProcessorSmokeTest {
 
         // @JsonInclude(NON_NULL) on a nullable field must use optional marker (?:)
         assertTrue(sdk.contains("bio?:"), "@JsonInclude(NON_NULL) nullable field should be optional with ?:")
+    }
+
+    @Test
+    fun `Java controller and POJO - getter derived fields and ecJava method emitted`(@TempDir tempDir: File) {
+        val outputPath = File(tempDir, "generated/api-sdk.ts").absolutePath
+
+        val compilation = KotlinCompilation().apply {
+            sources = listOf(coreSpringStubs(), javaDto(), javaController())
+            inheritClassPath = true
+            messageOutputStream = System.out
+            configureKsp {
+                symbolProcessorProviders.add(SpiaProcessorProvider())
+                processorOptions["spia.outputPath"] = outputPath
+                processorOptions["spia.apiClient"] = "fetch"
+                incremental = false
+            }
+        }
+
+        val result = compilation.compile()
+        assertEquals(
+            KotlinCompilation.ExitCode.OK,
+            result.exitCode,
+            "compilation should succeed with a Java @RestController"
+        )
+
+        assertTrue(File(outputPath).exists(), "SDK file not generated")
+        val sdk = File(outputPath).readText()
+
+        // Java controller methods must appear under the ecJava namespace
+        assertTrue(sdk.contains("ecJava"), "ecJava namespace missing from generated SDK")
+
+        // Java POJO getter getName() must be mapped to the lowercase field 'name'
+        assertTrue(sdk.contains("name:") || sdk.contains("name?: ") || sdk.contains("name: "),
+            "getter-derived field 'name' missing from EcJavaDto interface")
+
+        // EcJavaDto interface must be emitted
+        assertTrue(sdk.contains("EcJavaDto"), "EcJavaDto interface missing from generated SDK")
     }
 
 }

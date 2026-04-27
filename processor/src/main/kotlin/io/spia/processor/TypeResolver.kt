@@ -1,11 +1,14 @@
 package io.spia.processor
 
 import com.google.devtools.ksp.symbol.ClassKind
+import com.google.devtools.ksp.symbol.KSAnnotated
 import com.google.devtools.ksp.symbol.KSClassDeclaration
+import com.google.devtools.ksp.symbol.KSFunctionDeclaration
 import com.google.devtools.ksp.symbol.KSType
 import com.google.devtools.ksp.symbol.KSTypeParameter
 import com.google.devtools.ksp.symbol.Modifier
 import com.google.devtools.ksp.symbol.Nullability
+import com.google.devtools.ksp.symbol.Origin
 import io.spia.processor.model.FieldInfo
 import io.spia.processor.model.SdkConfig
 import io.spia.processor.model.SealedSubtype
@@ -87,6 +90,18 @@ class TypeResolver(private val config: SdkConfig) {
                 declaration.getSealedSubclasses().forEach { subDecl ->
                     subDecl.asStarProjectedType().let { preRegisterRec(it, visited) }
                 }
+            } else if (declaration.origin == Origin.JAVA || declaration.origin == Origin.JAVA_LIB) {
+                // Java POJOs expose fields via getters, not KSPropertyDeclarations.
+                declaration.getAllFunctions()
+                    .filter { fn ->
+                        val name = fn.simpleName.asString()
+                        fn.parameters.isEmpty() && name != "getClass" &&
+                            (name.length > 3 && name.startsWith("get") && name[3].isUpperCase() ||
+                             name.length > 2 && name.startsWith("is") && name[2].isUpperCase())
+                    }
+                    .forEach { fn ->
+                        fn.returnType?.resolve()?.let { preRegisterRec(it, visited) }
+                    }
             } else {
                 // Recurse into field types for transitive DTO discovery.
                 declaration.getAllProperties().forEach { prop ->
@@ -273,16 +288,34 @@ class TypeResolver(private val config: SdkConfig) {
         val placeholder = TypeInfo.Dto(tsName, emptyList())
         resolvedDtos[fqn] = placeholder
 
-        val fields = declaration.getAllProperties().map { prop ->
-            val propName = prop.simpleName.asString()
-            FieldInfo(
-                name = propName,
-                type = resolve(prop.type.resolve()),
-                serializedName = JacksonAnnotationReader.renamedTo(prop) ?: propName,
-                aliases = JacksonAnnotationReader.aliases(prop),
-                excludeWhenNull = JacksonAnnotationReader.excludeWhenNull(prop),
-            )
-        }.toList()
+        // For Java classes, KSP does not surface KSPropertyDeclarations — only getters exist.
+        // Fall back to getter-based field extraction when the class origin is JAVA or when
+        // getAllProperties() yields nothing for a Java-origin class.
+        val fields: List<FieldInfo> = if (declaration.origin == Origin.JAVA || declaration.origin == Origin.JAVA_LIB) {
+            val getterFields = javaGetterFields(declaration)
+            if (getterFields.isNotEmpty()) getterFields
+            else declaration.getAllProperties().map { prop ->
+                val propName = prop.simpleName.asString()
+                FieldInfo(
+                    name = propName,
+                    type = resolve(prop.type.resolve()),
+                    serializedName = JacksonAnnotationReader.renamedTo(prop) ?: propName,
+                    aliases = JacksonAnnotationReader.aliases(prop),
+                    excludeWhenNull = JacksonAnnotationReader.excludeWhenNull(prop),
+                )
+            }.toList()
+        } else {
+            declaration.getAllProperties().map { prop ->
+                val propName = prop.simpleName.asString()
+                FieldInfo(
+                    name = propName,
+                    type = resolve(prop.type.resolve()),
+                    serializedName = JacksonAnnotationReader.renamedTo(prop) ?: propName,
+                    aliases = JacksonAnnotationReader.aliases(prop),
+                    excludeWhenNull = JacksonAnnotationReader.excludeWhenNull(prop),
+                )
+            }.toList()
+        }
 
         // Overwrite the placeholder with the real DTO carrying the fields. This is the
         // fix: getOrPut-based predecessors discarded the lambda's return value and
@@ -290,6 +323,57 @@ class TypeResolver(private val config: SdkConfig) {
         val real = TypeInfo.Dto(tsName, fields)
         resolvedDtos[fqn] = real
         return real
+    }
+
+    /**
+     * For Java POJOs, KSP reports no KSPropertyDeclaration entries — fields are not surfaced
+     * as properties. Instead, public getter methods following the JavaBeans naming convention
+     * (`getXxx()` / `isXxx()`) are used as the source of truth for field discovery.
+     *
+     * Nullable detection: a getter is considered nullable when it is annotated with
+     * `@org.jetbrains.annotations.Nullable` or `@jakarta.annotation.Nullable`.
+     */
+    private fun javaGetterFields(declaration: KSClassDeclaration): List<FieldInfo> {
+        val skipNames = setOf("getClass")
+        return declaration.getAllFunctions()
+            .filter { fn ->
+                val name = fn.simpleName.asString()
+                fn.parameters.isEmpty() &&
+                    (name.length > 3 && name.startsWith("get") && name[3].isUpperCase() ||
+                     name.length > 2 && name.startsWith("is") && name[2].isUpperCase()) &&
+                    name !in skipNames
+            }
+            .mapNotNull { fn ->
+                val rawName = fn.simpleName.asString()
+                val fieldName = when {
+                    rawName.startsWith("get") -> rawName.removePrefix("get").replaceFirstChar { it.lowercaseChar() }
+                    rawName.startsWith("is")  -> rawName.removePrefix("is").replaceFirstChar { it.lowercaseChar() }
+                    else -> return@mapNotNull null
+                }
+                val returnKsType = fn.returnType?.resolve() ?: return@mapNotNull null
+                val isNullableAnnotated = isJavaNullableAnnotated(fn)
+                val fieldType = resolve(returnKsType).let {
+                    if (isNullableAnnotated) it.withNullable(true) else it
+                }
+                FieldInfo(
+                    name = fieldName,
+                    type = fieldType,
+                    serializedName = fieldName,
+                    aliases = emptyList(),
+                    excludeWhenNull = false,
+                )
+            }
+            .toList()
+    }
+
+    private fun isJavaNullableAnnotated(fn: KSAnnotated): Boolean {
+        val nullableAnnotations = setOf(
+            "org.jetbrains.annotations.Nullable",
+            "jakarta.annotation.Nullable",
+        )
+        return fn.annotations.any { ann ->
+            ann.annotationType.resolve().declaration.qualifiedName?.asString() in nullableAnnotations
+        }
     }
 
     private fun isStandardType(fqn: String): Boolean = when (fqn) {

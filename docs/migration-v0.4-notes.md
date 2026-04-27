@@ -10,4 +10,9 @@
 
 ## Annotations newly recognized
 
+## Java support
+
+- Java `@RestController` classes are now processed (minimum support). Plain Java POJO fields are discovered via JavaBeans getter methods (`getXxx()` → `xxx`).
+- **Known issue (P-13):** Lombok-generated getters are invisible to KSP at compile time. Lombok POJOs are emitted as empty TypeScript interfaces. Use plain Java POJOs with explicit getters, or Kotlin data classes.
+
 ## Breaking changes
