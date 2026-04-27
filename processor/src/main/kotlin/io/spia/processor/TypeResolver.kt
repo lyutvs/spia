@@ -208,9 +208,13 @@ class TypeResolver(private val config: SdkConfig) {
             resolvedGenerics[fqn] = placeholder
 
             val fields = declaration.getAllProperties().map { prop ->
+                val propName = prop.simpleName.asString()
                 FieldInfo(
-                    name = prop.simpleName.asString(),
+                    name = propName,
                     type = resolve(prop.type.resolve()),
+                    serializedName = JacksonAnnotationReader.renamedTo(prop) ?: propName,
+                    aliases = JacksonAnnotationReader.aliases(prop),
+                    excludeWhenNull = JacksonAnnotationReader.excludeWhenNull(prop),
                 )
             }.toList()
 
@@ -227,9 +231,13 @@ class TypeResolver(private val config: SdkConfig) {
         resolvedDtos[fqn] = placeholder
 
         val fields = declaration.getAllProperties().map { prop ->
+            val propName = prop.simpleName.asString()
             FieldInfo(
-                name = prop.simpleName.asString(),
+                name = propName,
                 type = resolve(prop.type.resolve()),
+                serializedName = JacksonAnnotationReader.renamedTo(prop) ?: propName,
+                aliases = JacksonAnnotationReader.aliases(prop),
+                excludeWhenNull = JacksonAnnotationReader.excludeWhenNull(prop),
             )
         }.toList()
 

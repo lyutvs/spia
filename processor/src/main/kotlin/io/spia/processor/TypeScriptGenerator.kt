@@ -72,15 +72,23 @@ class TypeScriptGenerator(private val config: SdkConfig) {
         val sb = StringBuilder()
         sb.appendLine("export interface ${dto.name} {")
         for (field in dto.fields) {
-            val tsType = renderType(field.type)
-            if (field.type.nullable) {
-                sb.appendLine("  ${field.name}: $tsType | null;")
-            } else {
-                sb.appendLine("  ${field.name}: $tsType;")
-            }
+            renderField(sb, field)
         }
         sb.appendLine("}")
         return sb.toString()
+    }
+
+    private fun renderField(sb: StringBuilder, field: FieldInfo) {
+        if (field.aliases.isNotEmpty()) {
+            sb.appendLine("  /** @alias ${field.aliases.joinToString(", ")} */")
+        }
+        val tsType = renderType(field.type)
+        val fieldName = field.serializedName
+        when {
+            field.type.nullable && field.excludeWhenNull -> sb.appendLine("  $fieldName?: $tsType | null;")
+            field.type.nullable -> sb.appendLine("  $fieldName: $tsType | null;")
+            else -> sb.appendLine("  $fieldName: $tsType;")
+        }
     }
 
     private fun renderType(type: TypeInfo): String = when (type) {
@@ -110,12 +118,7 @@ class TypeScriptGenerator(private val config: SdkConfig) {
         val params = generic.typeParameters.joinToString(", ")
         sb.appendLine("export interface ${generic.name}<$params> {")
         for (field in generic.fields) {
-            val tsType = renderType(field.type)
-            if (field.type.nullable) {
-                sb.appendLine("  ${field.name}: $tsType | null;")
-            } else {
-                sb.appendLine("  ${field.name}: $tsType;")
-            }
+            renderField(sb, field)
         }
         sb.appendLine("}")
         return sb.toString()

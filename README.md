@@ -289,3 +289,36 @@ incremental build compatibility notes.
 ## License
 
 Apache 2.0 — see [LICENSE](LICENSE).
+
+## Jackson annotation support
+
+SPIA now recognizes the following Jackson annotations on DTO fields:
+
+| Annotation | Effect on generated SDK |
+|---|---|
+| `@JsonProperty("field_name")` | The TypeScript interface uses `field_name` as the property key instead of the Kotlin property name. |
+| `@JsonAlias("a", "b")` | A JSDoc comment `/** @alias a, b */` is emitted above the field documenting the accepted deserialization aliases. |
+| `@JsonInclude(JsonInclude.Include.NON_NULL)` | A nullable field is marked optional (`field?: T \| null`) rather than required-but-nullable (`field: T \| null`), matching the server's omit-when-null behavior. |
+
+Example:
+
+```kotlin
+data class UserDto(
+    @JsonProperty("user_name")
+    @JsonAlias(value = ["name", "userName"])
+    val userName: String,
+
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    val bio: String? = null,
+)
+```
+
+Generates:
+
+```typescript
+export interface UserDto {
+  /** @alias name, userName */
+  user_name: string;
+  bio?: string | null;
+}
+```

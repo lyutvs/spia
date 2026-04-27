@@ -42,4 +42,7 @@ sealed class TypeInfo {
 data class FieldInfo(
     val name: String,
     val type: TypeInfo,
+    val serializedName: String = name,
+    val aliases: List<String> = emptyList(),
+    val excludeWhenNull: Boolean = false,
 )

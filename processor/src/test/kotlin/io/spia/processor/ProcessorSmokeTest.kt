@@ -9,6 +9,7 @@ import com.tschuchort.compiletesting.configureKsp
 import com.tschuchort.compiletesting.kspProcessorOptions
 import com.tschuchort.compiletesting.symbolProcessorProviders
 import io.spia.processor.test_support.coreSpringStubs
+import io.spia.processor.test_support.jacksonStubs
 import io.spia.processor.test_support.parameterStubs
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.io.TempDir
@@ -468,6 +469,73 @@ class ProcessorSmokeTest {
         assertFalse(sdk.contains("\${path}"), "un-interpolated Kotlin \${path} template leaked into TS output")
         // Old IIFE form must not leak back in.
         assertFalse(sdk.contains("(() => { const _p = new URLSearchParams"), "legacy IIFE query form leaked into TS output")
+    }
+
+    @Test
+    fun `EC-10 Jackson annotations - JsonProperty renames field, JsonAlias emits jsdoc, JsonInclude marks optional`(@TempDir tempDir: File) {
+        val outputPath = File(tempDir, "generated/api-sdk.ts").absolutePath
+
+        val source = SourceFile.kotlin(
+            "JacksonController.kt",
+            """
+            package test
+
+            import org.springframework.web.bind.annotation.RestController
+            import org.springframework.web.bind.annotation.PostMapping
+            import org.springframework.web.bind.annotation.RequestBody
+            import com.fasterxml.jackson.annotation.JsonProperty
+            import com.fasterxml.jackson.annotation.JsonAlias
+            import com.fasterxml.jackson.annotation.JsonInclude
+
+            data class JacksonDto(
+                @JsonProperty("user_name")
+                @JsonAlias(value = ["name", "userName"])
+                val userName: String,
+
+                @JsonInclude(JsonInclude.Include.NON_NULL)
+                val bio: String? = null,
+            )
+
+            @RestController
+            class JacksonController {
+                @PostMapping("/jackson/users")
+                fun create(@RequestBody dto: JacksonDto): JacksonDto = dto
+            }
+            """.trimIndent()
+        )
+
+        val compilation = KotlinCompilation().apply {
+            sources = listOf(source, coreSpringStubs(), jacksonStubs())
+            inheritClassPath = true
+            messageOutputStream = System.out
+            configureKsp {
+                symbolProcessorProviders.add(SpiaProcessorProvider())
+                processorOptions["spia.outputPath"] = outputPath
+                processorOptions["spia.apiClient"] = "fetch"
+                incremental = false
+            }
+        }
+
+        val result = compilation.compile()
+        assertEquals(
+            KotlinCompilation.ExitCode.OK,
+            result.exitCode,
+            "compilation should succeed"
+        )
+
+        assertTrue(File(outputPath).exists(), "SDK file not generated")
+        val sdk = File(outputPath).readText()
+
+        // @JsonProperty("user_name") must rename Kotlin property userName to user_name in TS
+        assertTrue(sdk.contains("user_name: string"), "@JsonProperty rename not applied")
+        assertFalse(sdk.contains("userName: string"), "Kotlin property name should not appear in output")
+
+        // @JsonAlias must emit a JSDoc comment with the alias names
+        assertTrue(sdk.contains("@alias"), "@JsonAlias JSDoc comment missing")
+        assertTrue(sdk.contains("name") && sdk.contains("userName"), "alias values missing from JSDoc")
+
+        // @JsonInclude(NON_NULL) on a nullable field must use optional marker (?:)
+        assertTrue(sdk.contains("bio?:"), "@JsonInclude(NON_NULL) nullable field should be optional with ?:")
     }
 
 }
