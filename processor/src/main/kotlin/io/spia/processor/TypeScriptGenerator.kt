@@ -204,13 +204,22 @@ class TypeScriptGenerator(private val config: SdkConfig) {
             sb.appendLine("       */")
         }
 
-        // Multipart parameters
-        val multipartParams = endpoint.parameters.filter { it.kind == ParameterKind.MULTIPART }
+        val params = renderEndpointParams(endpoint)
+        val tsPath = renderEndpointUrl(endpoint, fullPath)
+        val promiseType = renderEndpointReturn(endpoint)
 
+        sb.append(renderEndpointCall(endpoint, fullPath, params, tsPath, promiseType, config))
+
+        sb.appendLine()
+        return sb.toString()
+    }
+
+    /** Builds the TypeScript parameter signature string. */
+    private fun renderEndpointParams(endpoint: EndpointInfo): String {
         // Parameter list — optional query params get a TS-level `?` marker so callers
         // may omit them; fetch/axios builders will skip undefined values below.
         // MULTIPART params get File | Blob (single) or (File | Blob)[] (list) types.
-        val params = endpoint.parameters.joinToString(", ") { param ->
+        return endpoint.parameters.joinToString(", ") { param ->
             val marker = if (param.kind == ParameterKind.QUERY && !param.required) "?" else ""
             val tsType = if (param.kind == ParameterKind.MULTIPART) {
                 if (param.type is TypeInfo.Array) "(File | Blob)[]" else "File | Blob"
@@ -219,22 +228,27 @@ class TypeScriptGenerator(private val config: SdkConfig) {
             }
             "${param.name}$marker: $tsType"
         }
+    }
 
-        // Return type
-        val returnTs = renderType(endpoint.returnType)
-        val promiseType = if (returnTs == "void") "void" else returnTs
-
-        // Build path with template literals for path variables
+    /** Assembles the axios-style URL template literal with path variable substitutions. */
+    private fun renderEndpointUrl(endpoint: EndpointInfo, fullPath: String): String {
         val pathVariables = endpoint.parameters.filter { it.kind == ParameterKind.PATH }
-        val tsPath = buildTsPath(fullPath, pathVariables)
+        return buildTsPath(fullPath, pathVariables)
+    }
 
-        // Body parameter (ignored when multipart params are present)
+    /** Emits the axios or fetch call line(s) for the endpoint. */
+    private fun renderEndpointCall(
+        endpoint: EndpointInfo,
+        fullPath: String,
+        params: String,
+        tsPath: String,
+        promiseType: String,
+        config: SdkConfig,
+    ): String {
+        val sb = StringBuilder()
+        val multipartParams = endpoint.parameters.filter { it.kind == ParameterKind.MULTIPART }
         val bodyParam = endpoint.parameters.firstOrNull { it.kind == ParameterKind.BODY }
-
-        // Query parameters
         val queryParams = endpoint.parameters.filter { it.kind == ParameterKind.QUERY }
-
-        // Header parameters
         val headerParams = endpoint.parameters.filter { it.kind == ParameterKind.HEADER }
 
         when (config.apiClient) {
@@ -271,6 +285,7 @@ class TypeScriptGenerator(private val config: SdkConfig) {
             ApiClient.FETCH -> {
                 sb.append("      ${endpoint.functionName}: async ($params): Promise<$promiseType> => {\n")
                 val (queryPrelude, queryFragment) = buildFetchQuery(queryParams)
+                val pathVariables = endpoint.parameters.filter { it.kind == ParameterKind.PATH }
                 val fetchPathBase = buildFetchPath(fullPath, pathVariables)
                 // Drop the trailing backtick, append the query fragment, re-close the template literal.
                 val fetchUrl = if (queryFragment.isNotEmpty()) {
@@ -335,9 +350,13 @@ class TypeScriptGenerator(private val config: SdkConfig) {
                 sb.appendLine("      },")
             }
         }
-
-        sb.appendLine()
         return sb.toString()
+    }
+
+    /** Returns the Promise return type string for the endpoint. */
+    private fun renderEndpointReturn(endpoint: EndpointInfo): String {
+        val returnTs = renderType(endpoint.returnType)
+        return if (returnTs == "void") "void" else returnTs
     }
 
     private fun buildTsPath(path: String, pathVariables: List<ParameterInfo>): String {
