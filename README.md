@@ -371,3 +371,46 @@ SPIA supports Java `@RestController` classes and plain Java POJOs (JavaBeans) as
 
 - **Lombok-generated getters are not supported.** KSP processes Java source before Lombok's annotation processor generates accessor methods. As a result, Lombok `@Data` / `@Getter` POJOs will be emitted as empty interfaces. Use plain Java POJOs (field + constructor + explicit getters) with SPIA, or switch to Kotlin data classes.
 - Kotlin-only features (value classes, sealed unions) are not applicable to Java sources.
+
+## Handling errors
+
+SPIA generates a typed `ApiError<T>` class that is thrown whenever a fetch call receives a non-2xx response.
+The generated SDK always includes this base class at the top of the output file:
+
+```typescript
+export class ApiError<T = unknown> extends Error {
+  constructor(public status: number, public data: T, message?: string) { super(message); }
+}
+```
+
+When your Spring backend defines `@ExceptionHandler` methods annotated with `@ResponseStatus`, SPIA
+additionally emits per-endpoint typed error aliases so you can narrow the error type in `catch` blocks:
+
+```typescript
+// Generated alias — present when the endpoint's controller or a @ControllerAdvice declares an error handler
+export type GetItemsError = ApiError<NotFoundError | BadRequestError>;
+```
+
+### Usage example
+
+```typescript
+import { createApi, ApiError } from './api-sdk';
+
+const api = createApi('https://api.example.com');
+
+try {
+  const user = await api.user.getUserProfile(42);
+} catch (err) {
+  if (err instanceof ApiError) {
+    console.error(`HTTP ${err.status}`, err.data);
+  }
+}
+```
+
+### How error types are collected
+
+| Spring annotation | Effect |
+|---|---|
+| `@ControllerAdvice` / `@RestControllerAdvice` | SPIA scans all `@ExceptionHandler` methods and merges their return types as global error responses for every endpoint. |
+| `@ExceptionHandler` inside a `@RestController` | Local error handlers override global ones for that controller's endpoints. |
+| `@ResponseStatus(HttpStatus.X)` on an `@ExceptionHandler` method | Maps the return type to the given HTTP status code. |

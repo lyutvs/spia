@@ -16,6 +16,14 @@ class TypeScriptGenerator(private val config: SdkConfig) {
             sb.appendLine()
         }
 
+        // ApiError base class — always emitted
+        sb.appendLine("/* ──────────── Error Types ──────────── */")
+        sb.appendLine()
+        sb.appendLine("export class ApiError<T = unknown> extends Error {")
+        sb.appendLine("  constructor(public status: number, public data: T, message?: string) { super(message); }")
+        sb.appendLine("}")
+        sb.appendLine()
+
         // DTO types section
         val dtos = typeResolver.allDtos()
         val enums = typeResolver.allEnums()
@@ -49,6 +57,29 @@ class TypeScriptGenerator(private val config: SdkConfig) {
 
         for (generic in generics.sortedBy { it.name }) {
             sb.append(renderGenericInterface(generic))
+            sb.appendLine()
+        }
+
+        // Per-endpoint typed error aliases
+        val errorAliases = buildList {
+            for (controller in controllers.sortedBy { it.name }) {
+                for (endpoint in controller.endpoints) {
+                    val errorTypes = endpoint.errorResponses.values.toList()
+                    if (errorTypes.isEmpty()) continue
+                    val aliasName = endpoint.functionName.replaceFirstChar { it.uppercase() } + "Error"
+                    val unionTs = if (errorTypes.size == 1) {
+                        renderType(errorTypes.first())
+                    } else {
+                        errorTypes.joinToString(" | ") { renderType(it) }
+                    }
+                    add("export type $aliasName = ApiError<$unionTs>;")
+                }
+            }
+        }
+        if (errorAliases.isNotEmpty()) {
+            sb.appendLine("/* ──────────── Endpoint Error Aliases ──────────── */")
+            sb.appendLine()
+            errorAliases.forEach { sb.appendLine(it) }
             sb.appendLine()
         }
 
@@ -343,7 +374,7 @@ class TypeScriptGenerator(private val config: SdkConfig) {
                         }
                     }
                 }
-                sb.appendLine("        if (!res.ok) throw new Error(`SPIA ${endpoint.httpMethod.name} \${res.url} failed: \${res.status} \${res.statusText}`);")
+                sb.appendLine("        if (!res.ok) throw new ApiError(res.status, await res.json(), `SPIA ${endpoint.httpMethod.name} \${res.url} failed: \${res.status} \${res.statusText}`);")
                 if (promiseType != "void") {
                     sb.appendLine("        return res.json();")
                 }

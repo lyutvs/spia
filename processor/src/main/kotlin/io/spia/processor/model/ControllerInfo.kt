@@ -13,6 +13,7 @@ data class EndpointInfo(
     val parameters: List<ParameterInfo>,
     val returnType: TypeInfo,
     val jsdoc: String?,
+    val errorResponses: Map<Int, TypeInfo> = emptyMap(),
 )
 
 data class ParameterInfo(
