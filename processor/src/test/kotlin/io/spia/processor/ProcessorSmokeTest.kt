@@ -380,6 +380,145 @@ class ProcessorSmokeTest {
     }
 
     @Test
+    fun `EC-10 single module writes lockfile but no warning`(@TempDir tempDir: File) {
+        val outputPath = File(tempDir, "generated/api-sdk.ts").absolutePath
+
+        val source = SourceFile.kotlin(
+            "SingleModuleController.kt",
+            """
+            package test
+
+            import org.springframework.web.bind.annotation.RestController
+            import org.springframework.web.bind.annotation.GetMapping
+
+            @RestController
+            class SingleModuleController {
+                @GetMapping("/single")
+                fun ping(): String = "pong"
+            }
+            """.trimIndent()
+        )
+
+        val compilation = KotlinCompilation().apply {
+            sources = listOf(source, coreSpringStubs())
+            inheritClassPath = true
+            messageOutputStream = System.out
+            configureKsp {
+                symbolProcessorProviders.add(SpiaProcessorProvider())
+                processorOptions["spia.outputPath"] = outputPath
+                processorOptions["spia.moduleName"] = "single-module"
+                processorOptions["spia.apiClient"] = "axios"
+                incremental = false
+            }
+        }
+
+        val result = compilation.compile()
+        assertEquals(KotlinCompilation.ExitCode.OK, result.exitCode, "compilation should succeed")
+
+        val lockFile = File("$outputPath.spia-lock")
+        assertTrue(lockFile.exists(), "lockfile should be created for single module")
+        assertFalse(
+            result.messages.contains("EC-10"),
+            "single-module build should not emit an EC-10 conflict warning"
+        )
+    }
+
+    @Test
+    fun `EC-10 multi-module outputPath conflict emits warning and writes spia-lock`(@TempDir tempDir: File) {
+        val outputPath = File(tempDir, "generated/api-sdk.ts").absolutePath
+
+        // Module A: UserController
+        val sourceA = SourceFile.kotlin(
+            "ModuleAController.kt",
+            """
+            package test
+
+            import org.springframework.web.bind.annotation.RestController
+            import org.springframework.web.bind.annotation.GetMapping
+
+            data class UserA(val id: Long, val name: String)
+
+            @RestController
+            class ModuleAController {
+                @GetMapping("/module-a/users")
+                fun listUsers(): List<UserA> = emptyList()
+            }
+            """.trimIndent()
+        )
+
+        val compilationA = KotlinCompilation().apply {
+            sources = listOf(sourceA, coreSpringStubs())
+            inheritClassPath = true
+            messageOutputStream = System.out
+            configureKsp {
+                symbolProcessorProviders.add(SpiaProcessorProvider())
+                processorOptions["spia.outputPath"] = outputPath
+                processorOptions["spia.moduleName"] = "module-a"
+                processorOptions["spia.apiClient"] = "axios"
+                incremental = false
+            }
+        }
+
+        val resultA = compilationA.compile()
+        assertEquals(KotlinCompilation.ExitCode.OK, resultA.exitCode, "module-a compilation should succeed")
+
+        val lockFile = File("$outputPath.spia-lock")
+        assertTrue(lockFile.exists(), "lockfile should exist after module-a writes")
+
+        // Module B: different controller / different generated content → different digest
+        val sourceB = SourceFile.kotlin(
+            "ModuleBController.kt",
+            """
+            package test
+
+            import org.springframework.web.bind.annotation.RestController
+            import org.springframework.web.bind.annotation.GetMapping
+
+            data class ProductB(val sku: String, val price: Double)
+
+            @RestController
+            class ModuleBController {
+                @GetMapping("/module-b/products")
+                fun listProducts(): List<ProductB> = emptyList()
+            }
+            """.trimIndent()
+        )
+
+        val compilationB = KotlinCompilation().apply {
+            sources = listOf(sourceB, coreSpringStubs())
+            inheritClassPath = true
+            messageOutputStream = System.out
+            configureKsp {
+                symbolProcessorProviders.add(SpiaProcessorProvider())
+                processorOptions["spia.outputPath"] = outputPath
+                processorOptions["spia.moduleName"] = "module-b"
+                processorOptions["spia.apiClient"] = "axios"
+                incremental = false
+            }
+        }
+
+        val resultB = compilationB.compile()
+        assertEquals(KotlinCompilation.ExitCode.OK, resultB.exitCode, "module-b compilation should succeed")
+
+        // The lockfile must still exist (and now contain two entries)
+        assertTrue(lockFile.exists(), "spia-lock sidecar must exist after multi-module writes")
+
+        // The second compilation must have emitted a conflict warning (EC-10)
+        assertTrue(
+            resultB.messages.contains("EC-10"),
+            "Expected EC-10 conflict warning in module-b compilation messages. Got:\n${resultB.messages}"
+        )
+        assertTrue(
+            resultB.messages.contains("module-a"),
+            "Warning should mention the conflicting module name 'module-a'. Got:\n${resultB.messages}"
+        )
+
+        // Lockfile should have two entries (one per module)
+        val lockLines = lockFile.readLines().filter { it.isNotBlank() }
+        assertEquals(2, lockLines.size, "lockfile should have exactly 2 entries after two different modules write")
+    }
+
+    @Test
     fun `fetch emits createApi baseUrl string signature and fetch call`(@TempDir tempDir: File) {
         val outputPath = File(tempDir, "generated/api-sdk.ts").absolutePath
 

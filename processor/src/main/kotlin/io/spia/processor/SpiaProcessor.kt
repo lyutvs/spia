@@ -9,6 +9,8 @@ import com.google.devtools.ksp.symbol.KSClassDeclaration
 import com.google.devtools.ksp.symbol.KSFunctionDeclaration
 import io.spia.processor.model.*
 import java.io.File
+import java.security.MessageDigest
+import java.time.Instant
 
 class SpiaProcessor(
     private val environment: SymbolProcessorEnvironment,
@@ -64,6 +66,7 @@ class SpiaProcessor(
         if (outputPath != null) {
             val file = File(outputPath)
             file.parentFile?.mkdirs()
+            updateLockfile(file, content)
             file.writeText(content)
             logger.info("SPIA: Generated SDK at $outputPath")
         } else {
@@ -75,6 +78,66 @@ class SpiaProcessor(
             file.writeText(content)
             logger.info("SPIA: Generated SDK at ${file.absolutePath}")
         }
+    }
+
+    /**
+     * Maintains a sidecar lockfile at `<outputFile>.spia-lock`.
+     * Each line: `moduleName:sha256Hex:iso8601Timestamp`
+     *
+     * If another module name already exists in the lockfile with a different SHA-256 digest,
+     * emits a KSPLogger.warn so the build output surfaces the conflict (EC-10).
+     */
+    private fun updateLockfile(outputFile: File, content: String) {
+        val moduleName = environment.options["spia.moduleName"]
+            ?: environment.options["spia.projectDir"]?.let { File(it).name }
+            ?: "unknown"
+
+        val digest = sha256Hex(content)
+        val timestamp = Instant.now().toString()
+        val lockFile = File("${outputFile.absolutePath}.spia-lock")
+
+        // Parse existing entries
+        data class LockEntry(val module: String, val sha256: String, val timestamp: String)
+
+        val existingEntries: MutableMap<String, LockEntry> = mutableMapOf()
+        if (lockFile.exists()) {
+            lockFile.readLines().forEach { line ->
+                val parts = line.split(":", limit = 3)
+                if (parts.size == 3) {
+                    existingEntries[parts[0]] = LockEntry(parts[0], parts[1], parts[2])
+                }
+            }
+        }
+
+        // Detect conflict: any other module with a different digest
+        val conflictingModules = existingEntries.values
+            .filter { it.module != moduleName && it.sha256 != digest }
+            .map { it.module }
+
+        if (conflictingModules.isNotEmpty()) {
+            logger.warn(
+                "EC-10 SPIA outputPath conflict: module '$moduleName' is writing to '${outputFile.absolutePath}' " +
+                "but the following module(s) have already written a different digest: $conflictingModules. " +
+                "Consider using a separate outputPath per module."
+            )
+        }
+
+        // Update or insert current module entry
+        existingEntries[moduleName] = LockEntry(moduleName, digest, timestamp)
+
+        // Write lockfile with stable (sorted) ordering
+        lockFile.parentFile?.mkdirs()
+        lockFile.writeText(
+            existingEntries.values
+                .sortedBy { it.module }
+                .joinToString("\n") { "${it.module}:${it.sha256}:${it.timestamp}" }
+        )
+    }
+
+    private fun sha256Hex(content: String): String {
+        val md = MessageDigest.getInstance("SHA-256")
+        val bytes = md.digest(content.toByteArray(Charsets.UTF_8))
+        return bytes.joinToString("") { "%02x".format(it) }
     }
 
     private fun parseConfig(options: Map<String, String>): SdkConfig {

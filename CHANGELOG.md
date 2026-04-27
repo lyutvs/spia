@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- Multi-module `outputPath` conflict now emits a `KSPLogger.warn` when two subprojects write the same SDK file (closes EC-10). A `<outputPath>.spia-lock` sidecar tracks module name + SHA-256 digest + ISO 8601 timestamp per writer.
+
 ## [0.3.0] - 2026-04-27
 
 ### Changed
