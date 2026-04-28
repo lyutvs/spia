@@ -9,6 +9,18 @@ abstract class ClientOptions @Inject constructor(objects: ObjectFactory) {
     val baseUrl: Property<String> = objects.property(String::class.java)
 }
 
+abstract class NpmPackageOptions @Inject constructor(objects: ObjectFactory) {
+    /** Required — e.g. "@org/api-sdk". No convention; the task will error clearly if not set. */
+    val name: Property<String> = objects.property(String::class.java)
+
+    /** npm package version. Defaults to the root project version. */
+    val version: Property<String> = objects.property(String::class.java)
+
+    /** Directory (relative to project dir) where the npm package is assembled. */
+    val outputDir: Property<String> = objects.property(String::class.java)
+        .convention("build/npm")
+}
+
 abstract class SpiaExtension @Inject constructor(private val objects: ObjectFactory) {
     abstract val outputPath: Property<String>
     abstract val enumStyle: Property<String>
@@ -27,6 +39,9 @@ abstract class SpiaExtension @Inject constructor(private val objects: ObjectFact
 
     var splitByController: Boolean = false
 
-    // Reserved slots for upcoming tasks — uncomment and implement when the task lands:
-    // val npmPackage: NpmPackageOptions?         // task 21 (npm publish options)
+    val npmPackage: NpmPackageOptions = objects.newInstance(NpmPackageOptions::class.java)
+
+    fun npmPackage(action: Action<NpmPackageOptions>) {
+        action.execute(npmPackage)
+    }
 }
