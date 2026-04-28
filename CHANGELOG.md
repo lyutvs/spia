@@ -77,7 +77,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Known Issues (carried over from v0.1.0 audit)
 - Multi-module `outputPath` conflict — last-write-wins, no warning emitted (EC-10, deferred to v0.3.0).
-- `processor` module test coverage at 0.2% line / 0% branch — JaCoCo report available, dedicated test infrastructure deferred (EC-11, deferred to v0.3.0).
+- `processor` module test coverage at 0.2% line / 0% branch — JaCoCo report available, dedicated test infrastructure deferred (EC-11).
+- EC-11 is now closed: `processor` coverage raised to 83% line / 52% branch; JaCoCo rule enforces ≥50% line / ≥30% branch (see [Unreleased]).
 
 ### Breaking Changes
 See `### Changed` items marked **Breaking**:
