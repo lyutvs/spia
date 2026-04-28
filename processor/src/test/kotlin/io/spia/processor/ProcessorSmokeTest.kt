@@ -9,6 +9,7 @@ import com.tschuchort.compiletesting.configureKsp
 import com.tschuchort.compiletesting.kspProcessorOptions
 import com.tschuchort.compiletesting.symbolProcessorProviders
 import io.spia.processor.test_support.coreSpringStubs
+import io.spia.processor.test_support.flowStubs
 import io.spia.processor.test_support.httpStatusStubs
 import io.spia.processor.test_support.jacksonStubs
 import io.spia.processor.test_support.javaController
@@ -1522,6 +1523,78 @@ class ProcessorSmokeTest {
         // UserDto interface must reference UserId as branded type (not raw string)
         assertTrue(sdk.contains("interface UserDto"), "UserDto interface missing")
         assertTrue(sdk.contains("id: UserId"), "UserDto.id should reference UserId branded type")
+    }
+
+    @Test
+    fun `Mono and Flux and suspend fun unwrap reactive return types`(@TempDir tempDir: File) {
+        val outputPath = File(tempDir, "generated/api-sdk.ts").absolutePath
+
+        val source = SourceFile.kotlin(
+            "EcReactiveController.kt",
+            """
+            package test
+
+            import org.springframework.web.bind.annotation.RestController
+            import org.springframework.web.bind.annotation.GetMapping
+            import org.springframework.web.bind.annotation.RequestMapping
+            import reactor.core.publisher.Mono
+            import reactor.core.publisher.Flux
+
+            data class UserDto(val id: String, val name: String)
+
+            @RestController
+            @RequestMapping("/api/ec-reactive")
+            class EcReactiveController {
+                @GetMapping("/mono")
+                fun getMono(): Mono<UserDto> = throw NotImplementedError()
+
+                @GetMapping("/flux")
+                fun getFlux(): Flux<UserDto> = throw NotImplementedError()
+
+                @GetMapping("/suspend")
+                suspend fun getSuspend(): UserDto = throw NotImplementedError()
+            }
+            """.trimIndent()
+        )
+
+        val compilation = KotlinCompilation().apply {
+            sources = listOf(
+                source,
+                coreSpringStubs(),
+                reactorStubs(),
+            )
+            inheritClassPath = true
+            messageOutputStream = System.out
+            configureKsp {
+                symbolProcessorProviders.add(SpiaProcessorProvider())
+                processorOptions["spia.outputPath"] = outputPath
+                processorOptions["spia.apiClient"] = "axios"
+                incremental = false
+            }
+        }
+
+        val result = compilation.compile()
+        assertEquals(KotlinCompilation.ExitCode.OK, result.exitCode, "compilation should succeed")
+
+        assertTrue(File(outputPath).exists(), "SDK file not generated")
+        val sdk = File(outputPath).readText()
+
+        // Mono<UserDto> → Promise<UserDto> (single value unwrap)
+        assertTrue(
+            sdk.contains("Promise<UserDto>"),
+            "Mono<UserDto> should unwrap to Promise<UserDto> in:\n$sdk"
+        )
+        // Flux<UserDto> → Promise<UserDto[]> (multi-value array unwrap)
+        assertTrue(
+            sdk.contains("Promise<UserDto[]>"),
+            "Flux<UserDto> should unwrap to Promise<UserDto[]> in:\n$sdk"
+        )
+        // SSE Flux<ServerSentEvent<Tick>> must still produce AsyncIterable<Tick> — verified in separate test
+        // Confirm AsyncIterable<Tick> is NOT here (this controller has no SSE)
+        assertFalse(
+            sdk.contains("AsyncIterable<Tick>"),
+            "plain Flux should not produce AsyncIterable in:\n$sdk"
+        )
     }
 
 }

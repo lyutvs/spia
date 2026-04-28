@@ -94,12 +94,22 @@ fun parameterStubs(): SourceFile = SourceFile.kotlin(
     """.trimIndent()
 )
 
-/** Stub for {@code reactor.core.publisher.Flux} used by SSE/streaming tests. */
+/** Stub for {@code reactor.core.publisher.Flux} and {@code reactor.core.publisher.Mono} used by reactive tests. */
 fun reactorStubs(): SourceFile = SourceFile.kotlin(
     "ReactorStubs.kt",
     """
     package reactor.core.publisher
     class Flux<T>
+    class Mono<T>
+    """.trimIndent()
+)
+
+/** Stub for {@code kotlinx.coroutines.flow.Flow} used by coroutine reactive tests. */
+fun flowStubs(): SourceFile = SourceFile.kotlin(
+    "FlowStubs.kt",
+    """
+    package kotlinx.coroutines.flow
+    interface Flow<T>
     """.trimIndent()
 )
 

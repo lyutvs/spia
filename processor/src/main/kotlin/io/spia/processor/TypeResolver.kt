@@ -190,7 +190,14 @@ class TypeResolver(private val config: SdkConfig) {
                 if (inner != null) resolve(inner) else TypeInfo.Primitive("any")
             }
 
+            // Mono<T> → unwrap to T (single value — maps to Promise<T> at the TS layer)
+            "reactor.core.publisher.Mono" -> {
+                val inner = ksType.arguments.firstOrNull()?.type?.resolve()
+                if (inner != null) resolve(inner) else TypeInfo.Primitive("any")
+            }
+
             // produces text/event-stream — Flux<ServerSentEvent<T>> → AsyncIterable<T>
+            // plain Flux<T> → T[] (multi-value array)
             SpringAnnotations.FLUX -> {
                 val inner = ksType.arguments.firstOrNull()?.type?.resolve()
                 if (inner != null) {
@@ -200,11 +207,17 @@ class TypeResolver(private val config: SdkConfig) {
                         if (item != null) TypeInfo.StreamType(resolve(item))
                         else TypeInfo.StreamType(TypeInfo.Primitive("any"))
                     } else {
-                        TypeInfo.StreamType(resolve(inner))
+                        TypeInfo.Array(resolve(inner))
                     }
                 } else {
-                    TypeInfo.StreamType(TypeInfo.Primitive("any"))
+                    TypeInfo.Array(TypeInfo.Primitive("any"))
                 }
+            }
+
+            // Flow<T> → T[] (multi-value coroutine stream)
+            "kotlinx.coroutines.flow.Flow" -> {
+                val inner = ksType.arguments.firstOrNull()?.type?.resolve()
+                if (inner != null) TypeInfo.Array(resolve(inner)) else TypeInfo.Array(TypeInfo.Primitive("any"))
             }
 
             SpringAnnotations.SERVER_SENT_EVENT -> {
@@ -478,9 +491,11 @@ class TypeResolver(private val config: SdkConfig) {
         "java.util.Map", "java.util.HashMap",
         "org.springframework.http.ResponseEntity",
         SpringAnnotations.MULTIPART_FILE,
+        "reactor.core.publisher.Mono",
         SpringAnnotations.FLUX,
         SpringAnnotations.SERVER_SENT_EVENT,
-        SpringAnnotations.RESOURCE -> true
+        SpringAnnotations.RESOURCE,
+        "kotlinx.coroutines.flow.Flow" -> true
         else -> false
     }
 }

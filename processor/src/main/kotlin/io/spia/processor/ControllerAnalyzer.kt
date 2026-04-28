@@ -6,6 +6,7 @@ import com.google.devtools.ksp.symbol.KSAnnotation
 import com.google.devtools.ksp.symbol.KSClassDeclaration
 import com.google.devtools.ksp.symbol.KSFunctionDeclaration
 import com.google.devtools.ksp.symbol.KSValueParameter
+import com.google.devtools.ksp.symbol.Modifier
 import io.spia.processor.model.*
 
 class ControllerAnalyzer(private val typeResolver: TypeResolver, private val logger: KSPLogger? = null) {
@@ -105,6 +106,12 @@ class ControllerAnalyzer(private val typeResolver: TypeResolver, private val log
 
         val path = extractPathFromAnnotation(annotation)
         val parameters = function.parameters.mapNotNull { analyzeParameter(it) }
+
+        // Detect suspend functions: KSP surfaces the declared return type normally —
+        // the Continuation parameter is represented in modifiers, not in returnType.
+        // No special wrapping is needed; just resolve the declared returnType as-is.
+        @Suppress("UNUSED_VARIABLE")
+        val isSuspend = function.modifiers.contains(Modifier.SUSPEND)
 
         val returnType = function.returnType?.resolve()?.let { typeResolver.resolve(it) }
             ?: TypeInfo.Primitive("void")
