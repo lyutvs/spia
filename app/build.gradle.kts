@@ -42,6 +42,9 @@ spia {
     // the processor emits one `<slug>.api.ts` file per controller plus an
     // `index.ts` barrel and a `_shared.ts` module. Bundlers can then
     // tree-shake unused controllers.
+    npmPackage {
+        name.set("@spia-sandbox/api-sdk")
+    }
 }
 
 /* ───────────── Frontend typecheck gate ─────────────

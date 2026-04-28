@@ -366,6 +366,60 @@ check that you imported from `./<slug>.api` directly rather than from the
 The default for `splitByController` is `false` so existing single-file
 consumers see no change.
 
+## Publishing as npm package
+
+SPIA can assemble the generated TypeScript SDK into an npm-publishable package
+using the `spiaPackNpm` Gradle task. Add an `npmPackage` block inside your
+`spia { }` configuration:
+
+```kotlin
+// build.gradle.kts
+spia {
+    outputPath = "frontend/src/generated/api-sdk.ts"
+    npmPackage {
+        name.set("@your-org/api-sdk")       // required
+        // version defaults to rootProject.version
+        // outputDir defaults to "build/npm"
+    }
+}
+```
+
+Run the task to assemble the package:
+
+```bash
+./gradlew :app:spiaPackNpm
+```
+
+The task produces the following structure under `build/npm/` (by default):
+
+```
+build/npm/
+  package.json      # name, version, main, types, exports, peerDependencies
+  tsconfig.json     # ES2022 + ESNext modules, strict, declaration true
+  src/
+    api-sdk.ts      # generated SDK
+    api-sdk.zod.ts  # generated Zod schemas (if schemaOutput = "zod")
+```
+
+To publish to a registry:
+
+```bash
+cd build/npm
+npm install       # install devDependencies (tsc, etc.) if needed
+npm run build     # tsc compiles src/ → dist/
+npm publish --access public
+```
+
+| `npmPackage` option | Type | Default | Description |
+|---|---|---|---|
+| `name` | `String` | — (required) | npm package name, e.g. `"@org/api-sdk"` |
+| `version` | `String` | root project version | npm package version |
+| `outputDir` | `String` | `"build/npm"` | Output directory (relative to project dir) |
+
+Applying the plugin without an `npmPackage { }` block does not break existing
+builds — `version` and `outputDir` have convention defaults. The task only
+validates the required `name` property when it is actually invoked.
+
 ## Development
 
 Requirements: JDK 21, Node.js 18+, Gradle wrapper (bundled).
