@@ -113,6 +113,10 @@ custom auth), see [Configuration options](#configuration-options).
 | `@RequestParam` | ✅ | `required=false` and `defaultValue` map to optional params + JSDoc `@default` |
 | `@RequestHeader` | ✅ | Typed header parameters; transmitted via axios `headers` config (annotation value used as key) |
 | `@RequestPart` / `MultipartFile` | ✅ | `File` / `File[]` mapped to `File \| Blob`; SDK builds `FormData` |
+| `@ModelAttribute` | ✅ | DTO fields flattened into individual query-string parameters |
+| `@CookieValue` | ✅ | Cookie params collected into `cookies?: Record<string, string>`; SDK builds `Cookie: k=v` header |
+| `@RequestAttribute` | ✅ (excluded) | Server-side only — excluded from the generated TS signature; KSP warn emitted |
+| `@MatrixVariable` | ✅ | Treated as query-string parameter (`;key=value` path segment fallback) |
 | Primitives, `String`, `Boolean`, `Int`, `Long`, `Double`, … | ✅ | `Long` configurable (`number` / `string` / `bigint`) |
 | `List<T>`, `Set<T>`, `Collection<T>` → `T[]` | ✅ | |
 | `Map<K, V>` → `{ [key: K]: V }` | ✅ | |

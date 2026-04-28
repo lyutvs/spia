@@ -1,5 +1,6 @@
 package io.spia.processor
 
+import com.google.devtools.ksp.processing.KSPLogger
 import com.google.devtools.ksp.symbol.ClassKind
 import com.google.devtools.ksp.symbol.KSAnnotation
 import com.google.devtools.ksp.symbol.KSClassDeclaration
@@ -7,7 +8,7 @@ import com.google.devtools.ksp.symbol.KSFunctionDeclaration
 import com.google.devtools.ksp.symbol.KSValueParameter
 import io.spia.processor.model.*
 
-class ControllerAnalyzer(private val typeResolver: TypeResolver) {
+class ControllerAnalyzer(private val typeResolver: TypeResolver, private val logger: KSPLogger? = null) {
 
     /**
      * Collects global error responses from all `@ControllerAdvice` / `@RestControllerAdvice`
@@ -164,6 +165,10 @@ class ControllerAnalyzer(private val typeResolver: TypeResolver) {
                 SpringAnnotations.REQUEST_PARAM -> ParameterKind.QUERY
                 SpringAnnotations.REQUEST_HEADER -> ParameterKind.HEADER
                 SpringAnnotations.REQUEST_PART -> ParameterKind.MULTIPART
+                SpringAnnotations.MODEL_ATTRIBUTE -> ParameterKind.MODEL_ATTRIBUTE
+                SpringAnnotations.COOKIE_VALUE -> ParameterKind.COOKIE
+                SpringAnnotations.REQUEST_ATTRIBUTE -> ParameterKind.REQUEST_ATTRIBUTE
+                SpringAnnotations.MATRIX_VARIABLE -> ParameterKind.MATRIX_VARIABLE
                 else -> continue
             }
 
@@ -200,6 +205,28 @@ class ControllerAnalyzer(private val typeResolver: TypeResolver) {
                     type = paramType,
                     kind = kind,
                     headerName = effectiveHeaderName,
+                )
+            }
+
+            if (kind == ParameterKind.REQUEST_ATTRIBUTE) {
+                // @RequestAttribute is server-side only — skip from the generated TS signature.
+                logger?.warn(
+                    "@RequestAttribute parameter '$paramName' is server-side only and will be excluded from the generated TypeScript SDK.",
+                    param
+                )
+                return null
+            }
+
+            if (kind == ParameterKind.COOKIE) {
+                val cookieName = annotation.arguments
+                    .firstOrNull { it.name?.asString() == "value" }?.value as? String
+                    ?: annotation.arguments.firstOrNull { it.name?.asString() == "name" }?.value as? String
+                val effectiveCookieName = cookieName?.takeIf { it.isNotBlank() } ?: paramName
+                return ParameterInfo(
+                    name = paramName,
+                    type = paramType,
+                    kind = kind,
+                    headerName = effectiveCookieName,
                 )
             }
 

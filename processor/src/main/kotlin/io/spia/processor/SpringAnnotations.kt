@@ -18,6 +18,10 @@ object SpringAnnotations {
     const val EXCEPTION_HANDLER = "org.springframework.web.bind.annotation.ExceptionHandler"
     const val CONTROLLER_ADVICE = "org.springframework.web.bind.annotation.ControllerAdvice"
     const val REST_CONTROLLER_ADVICE = "org.springframework.web.bind.annotation.RestControllerAdvice"
+    const val MODEL_ATTRIBUTE = "org.springframework.web.bind.annotation.ModelAttribute"
+    const val COOKIE_VALUE = "org.springframework.web.bind.annotation.CookieValue"
+    const val REQUEST_ATTRIBUTE = "org.springframework.web.bind.annotation.RequestAttribute"
+    const val MATRIX_VARIABLE = "org.springframework.web.bind.annotation.MatrixVariable"
 
     const val NOT_NULL = "jakarta.validation.constraints.NotNull"
     const val SIZE = "jakarta.validation.constraints.Size"

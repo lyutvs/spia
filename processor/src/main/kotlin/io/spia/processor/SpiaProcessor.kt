@@ -39,8 +39,8 @@ class SpiaProcessor(
         logger.info("SPIA: Found ${controllers.size} controller(s)")
 
         val typeResolver = TypeResolver(config)
-        val analyzer = ControllerAnalyzer(typeResolver)
-        val generator = TypeScriptGenerator(config)
+        val analyzer = ControllerAnalyzer(typeResolver, logger)
+        val generator = TypeScriptGenerator(config, logger)
 
         // Find @ControllerAdvice / @RestControllerAdvice classes for global error mapping.
         val adviceClasses = (

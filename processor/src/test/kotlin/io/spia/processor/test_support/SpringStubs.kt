@@ -32,6 +32,10 @@ fun coreSpringStubs(): SourceFile = SourceFile.kotlin(
     @Target(AnnotationTarget.CLASS) annotation class ControllerAdvice
     @Target(AnnotationTarget.CLASS) annotation class RestControllerAdvice
     @Target(AnnotationTarget.FUNCTION) annotation class ExceptionHandler(vararg val value: kotlin.reflect.KClass<*> = [])
+    @Target(AnnotationTarget.VALUE_PARAMETER, AnnotationTarget.FUNCTION) annotation class ModelAttribute(val value: String = "", val name: String = "")
+    @Target(AnnotationTarget.VALUE_PARAMETER) annotation class CookieValue(val value: String = "", val name: String = "", val required: Boolean = true)
+    @Target(AnnotationTarget.VALUE_PARAMETER) annotation class RequestAttribute(val value: String = "", val name: String = "", val required: Boolean = true)
+    @Target(AnnotationTarget.VALUE_PARAMETER) annotation class MatrixVariable(val value: String = "", val name: String = "", val required: Boolean = true)
     """.trimIndent()
 )
 

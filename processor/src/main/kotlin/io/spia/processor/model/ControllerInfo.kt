@@ -27,4 +27,4 @@ data class ParameterInfo(
 
 enum class HttpMethod { GET, POST, PUT, DELETE, PATCH }
 
-enum class ParameterKind { PATH, QUERY, BODY, HEADER, MULTIPART }
+enum class ParameterKind { PATH, QUERY, BODY, HEADER, MULTIPART, MODEL_ATTRIBUTE, COOKIE, REQUEST_ATTRIBUTE, MATRIX_VARIABLE }

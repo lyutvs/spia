@@ -1163,6 +1163,193 @@ class ProcessorSmokeTest {
     }
 
     @Test
+    fun `EC-15 CookieValue parameter generates cookies optional Record param`(@TempDir tempDir: File) {
+        val outputPath = File(tempDir, "generated/api-sdk.ts").absolutePath
+
+        val source = SourceFile.kotlin(
+            "CookieController.kt",
+            """
+            package test
+
+            import org.springframework.web.bind.annotation.RestController
+            import org.springframework.web.bind.annotation.GetMapping
+            import org.springframework.web.bind.annotation.CookieValue
+
+            @RestController
+            class CookieController {
+                @GetMapping("/whoami")
+                fun whoami(@CookieValue("session-id") sessionId: String): String = "stub"
+            }
+            """.trimIndent()
+        )
+
+        val compilation = KotlinCompilation().apply {
+            sources = listOf(source, coreSpringStubs())
+            inheritClassPath = true
+            messageOutputStream = System.out
+            configureKsp {
+                symbolProcessorProviders.add(SpiaProcessorProvider())
+                processorOptions["spia.outputPath"] = outputPath
+                processorOptions["spia.apiClient"] = "axios"
+                incremental = false
+            }
+        }
+
+        val result = compilation.compile()
+        assertEquals(KotlinCompilation.ExitCode.OK, result.exitCode, "compilation should succeed")
+
+        assertTrue(File(outputPath).exists(), "SDK file not generated")
+        val sdk = File(outputPath).readText()
+
+        // @CookieValue must produce a cookies?: Record<string, string> opt parameter
+        assertTrue(sdk.contains("cookies"), "cookies parameter missing from @CookieValue endpoint")
+        assertTrue(sdk.contains("Record<string, string>"), "cookies Record type missing")
+    }
+
+    @Test
+    fun `EC-15 ModelAttribute DTO fields flattened to query params`(@TempDir tempDir: File) {
+        val outputPath = File(tempDir, "generated/api-sdk.ts").absolutePath
+
+        val source = SourceFile.kotlin(
+            "ModelAttributeController.kt",
+            """
+            package test
+
+            import org.springframework.web.bind.annotation.RestController
+            import org.springframework.web.bind.annotation.GetMapping
+            import org.springframework.web.bind.annotation.ModelAttribute
+
+            data class SearchFilter(val keyword: String, val page: Int = 0, val size: Int = 20)
+
+            @RestController
+            class ModelAttributeController {
+                @GetMapping("/search")
+                fun search(@ModelAttribute filter: SearchFilter): List<String> = emptyList()
+            }
+            """.trimIndent()
+        )
+
+        val compilation = KotlinCompilation().apply {
+            sources = listOf(source, coreSpringStubs())
+            inheritClassPath = true
+            messageOutputStream = System.out
+            configureKsp {
+                symbolProcessorProviders.add(SpiaProcessorProvider())
+                processorOptions["spia.outputPath"] = outputPath
+                processorOptions["spia.apiClient"] = "axios"
+                incremental = false
+            }
+        }
+
+        val result = compilation.compile()
+        assertEquals(KotlinCompilation.ExitCode.OK, result.exitCode, "compilation should succeed")
+
+        assertTrue(File(outputPath).exists(), "SDK file not generated")
+        val sdk = File(outputPath).readText()
+
+        // @ModelAttribute DTO fields must be flattened to individual params, not nested object
+        assertTrue(sdk.contains("keyword"), "ModelAttribute DTO field 'keyword' missing from params")
+        // The individual field names should appear as query-string params, not the DTO name
+        assertFalse(sdk.contains("filter: SearchFilter"), "DTO param should be flattened, not passed as object")
+    }
+
+    @Test
+    fun `EC-15 RequestAttribute server-side only — excluded from TS signature with warn`(@TempDir tempDir: File) {
+        val outputPath = File(tempDir, "generated/api-sdk.ts").absolutePath
+
+        val source = SourceFile.kotlin(
+            "RequestAttributeController.kt",
+            """
+            package test
+
+            import org.springframework.web.bind.annotation.RestController
+            import org.springframework.web.bind.annotation.GetMapping
+            import org.springframework.web.bind.annotation.RequestAttribute
+
+            @RestController
+            class RequestAttributeController {
+                @GetMapping("/req-attr")
+                fun getAttr(@RequestAttribute("requestId") requestId: String): String = "stub"
+            }
+            """.trimIndent()
+        )
+
+        val compilation = KotlinCompilation().apply {
+            sources = listOf(source, coreSpringStubs())
+            inheritClassPath = true
+            messageOutputStream = System.out
+            configureKsp {
+                symbolProcessorProviders.add(SpiaProcessorProvider())
+                processorOptions["spia.outputPath"] = outputPath
+                processorOptions["spia.apiClient"] = "axios"
+                incremental = false
+            }
+        }
+
+        val result = compilation.compile()
+        assertEquals(KotlinCompilation.ExitCode.OK, result.exitCode, "compilation should succeed")
+
+        assertTrue(File(outputPath).exists(), "SDK file not generated")
+        val sdk = File(outputPath).readText()
+
+        // @RequestAttribute parameter must NOT appear in the generated TS signature
+        assertFalse(sdk.contains("requestId: string"), "@RequestAttribute param should be excluded from TS signature")
+
+        // A warn must be emitted in the build output (server-side only)
+        assertTrue(
+            result.messages.contains("RequestAttribute") || result.messages.contains("server-side"),
+            "Expected warn about @RequestAttribute server-side-only. Got:\n${result.messages}"
+        )
+    }
+
+    @Test
+    fun `EC-15 MatrixVariable treated as query string parameter`(@TempDir tempDir: File) {
+        val outputPath = File(tempDir, "generated/api-sdk.ts").absolutePath
+
+        val source = SourceFile.kotlin(
+            "MatrixVariableController.kt",
+            """
+            package test
+
+            import org.springframework.web.bind.annotation.RestController
+            import org.springframework.web.bind.annotation.GetMapping
+            import org.springframework.web.bind.annotation.PathVariable
+            import org.springframework.web.bind.annotation.MatrixVariable
+
+            @RestController
+            class MatrixVariableController {
+                @GetMapping("/items/{id}")
+                fun getItem(
+                    @PathVariable id: Long,
+                    @MatrixVariable color: String,
+                ): String = "stub"
+            }
+            """.trimIndent()
+        )
+
+        val compilation = KotlinCompilation().apply {
+            sources = listOf(source, coreSpringStubs())
+            inheritClassPath = true
+            messageOutputStream = System.out
+            configureKsp {
+                symbolProcessorProviders.add(SpiaProcessorProvider())
+                processorOptions["spia.outputPath"] = outputPath
+                processorOptions["spia.apiClient"] = "axios"
+                incremental = false
+            }
+        }
+
+        val result = compilation.compile()
+        assertEquals(KotlinCompilation.ExitCode.OK, result.exitCode, "compilation should succeed")
+
+        assertTrue(File(outputPath).exists(), "SDK file not generated")
+        val sdk = File(outputPath).readText()
+
+        // @MatrixVariable param must appear in the generated TS signature
+        assertTrue(sdk.contains("color"), "MatrixVariable param 'color' missing from TS signature")
+    }
+
+    @Test
     fun `fetch createApi baseUrl priority - buildtime config baseUrl is used when set`(@TempDir tempDir: File) {
         val outputPath = File(tempDir, "generated/api-sdk.ts").absolutePath
 
