@@ -42,6 +42,12 @@ class SpiaProcessor(
         val analyzer = ControllerAnalyzer(typeResolver)
         val generator = TypeScriptGenerator(config)
 
+        // Find @ControllerAdvice / @RestControllerAdvice classes for global error mapping.
+        val adviceClasses = (
+            resolver.getSymbolsWithAnnotation(SpringAnnotations.CONTROLLER_ADVICE) +
+            resolver.getSymbolsWithAnnotation(SpringAnnotations.REST_CONTROLLER_ADVICE)
+        ).filterIsInstance<KSClassDeclaration>().toList()
+
         // Pass 1: pre-register every DTO/enum reachable from controller signatures so
         // TS names (including same-simple-name disambiguation) are finalized before any
         // field reference is resolved.
@@ -51,9 +57,21 @@ class SpiaProcessor(
                 fn.returnType?.resolve()?.let { typeResolver.preRegister(it) }
             }
         }
+        // Pre-register return types from @ExceptionHandler methods (in advice and controllers).
+        (controllers + adviceClasses).forEach { cls ->
+            cls.declarations.filterIsInstance<KSFunctionDeclaration>().forEach { fn ->
+                val hasHandler = fn.annotations.any {
+                    it.annotationType.resolve().declaration.qualifiedName?.asString() == SpringAnnotations.EXCEPTION_HANDLER
+                }
+                if (hasHandler) fn.returnType?.resolve()?.let { typeResolver.preRegister(it) }
+            }
+        }
+
+        // Collect global error responses from @ControllerAdvice classes.
+        val globalErrors = analyzer.collectAdviceErrors(adviceClasses)
 
         // Pass 2: resolve and analyze controllers with stable names in place.
-        val controllerInfos = controllers.map { analyzer.analyze(it) }
+        val controllerInfos = controllers.map { analyzer.analyze(it, globalErrors) }
         val tsContent = generator.generate(controllerInfos, typeResolver)
 
         writeOutput(config, tsContent)

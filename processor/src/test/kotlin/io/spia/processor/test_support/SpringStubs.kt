@@ -29,6 +29,51 @@ fun coreSpringStubs(): SourceFile = SourceFile.kotlin(
     @Target(AnnotationTarget.VALUE_PARAMETER) annotation class RequestBody
     @Target(AnnotationTarget.VALUE_PARAMETER) annotation class RequestHeader(val value: String = "", val name: String = "")
     @Target(AnnotationTarget.VALUE_PARAMETER) annotation class RequestPart(val value: String = "", val name: String = "")
+    @Target(AnnotationTarget.CLASS) annotation class ControllerAdvice
+    @Target(AnnotationTarget.CLASS) annotation class RestControllerAdvice
+    @Target(AnnotationTarget.FUNCTION) annotation class ExceptionHandler(vararg val value: kotlin.reflect.KClass<*> = [])
+    """.trimIndent()
+)
+
+/**
+ * Spring HTTP status enum stub.
+ * Include alongside coreSpringStubs() in tests that use @ResponseStatus.
+ */
+fun httpStatusStubs(): SourceFile = SourceFile.kotlin(
+    "HttpStatusStub.kt",
+    """
+    package org.springframework.http
+
+    enum class HttpStatus(val value: Int) {
+        OK(200),
+        CREATED(201),
+        NO_CONTENT(204),
+        BAD_REQUEST(400),
+        UNAUTHORIZED(401),
+        FORBIDDEN(403),
+        NOT_FOUND(404),
+        CONFLICT(409),
+        UNPROCESSABLE_ENTITY(422),
+        INTERNAL_SERVER_ERROR(500),
+        SERVICE_UNAVAILABLE(503),
+    }
+    """.trimIndent()
+)
+
+/**
+ * Spring ResponseStatus annotation stub.
+ * Requires httpStatusStubs() in the same compilation.
+ */
+fun responseStatusStubs(): SourceFile = SourceFile.kotlin(
+    "ResponseStatusStub.kt",
+    """
+    package org.springframework.web.bind.annotation
+
+    @Target(AnnotationTarget.CLASS, AnnotationTarget.FUNCTION)
+    annotation class ResponseStatus(
+        val value: org.springframework.http.HttpStatus = org.springframework.http.HttpStatus.INTERNAL_SERVER_ERROR,
+        val code: org.springframework.http.HttpStatus = org.springframework.http.HttpStatus.INTERNAL_SERVER_ERROR,
+    )
     """.trimIndent()
 )
 

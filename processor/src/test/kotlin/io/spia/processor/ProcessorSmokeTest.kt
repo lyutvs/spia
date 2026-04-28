@@ -9,10 +9,12 @@ import com.tschuchort.compiletesting.configureKsp
 import com.tschuchort.compiletesting.kspProcessorOptions
 import com.tschuchort.compiletesting.symbolProcessorProviders
 import io.spia.processor.test_support.coreSpringStubs
+import io.spia.processor.test_support.httpStatusStubs
 import io.spia.processor.test_support.jacksonStubs
 import io.spia.processor.test_support.javaController
 import io.spia.processor.test_support.javaDto
 import io.spia.processor.test_support.parameterStubs
+import io.spia.processor.test_support.responseStatusStubs
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.io.TempDir
 import java.io.File
@@ -764,6 +766,158 @@ class ProcessorSmokeTest {
 
         // @JsonInclude(NON_NULL) on a nullable field must use optional marker (?:)
         assertTrue(sdk.contains("bio?:"), "@JsonInclude(NON_NULL) nullable field should be optional with ?:")
+    }
+
+    @Test
+    fun `EC-11 generated SDK contains ApiError class definition`(@TempDir tempDir: File) {
+        val outputPath = File(tempDir, "generated/api-sdk.ts").absolutePath
+
+        val source = SourceFile.kotlin(
+            "SimpleController.kt",
+            """
+            package test
+
+            import org.springframework.web.bind.annotation.RestController
+            import org.springframework.web.bind.annotation.GetMapping
+
+            @RestController
+            class SimpleController {
+                @GetMapping("/ping")
+                fun ping(): String = "pong"
+            }
+            """.trimIndent()
+        )
+
+        val compilation = KotlinCompilation().apply {
+            sources = listOf(source, coreSpringStubs())
+            inheritClassPath = true
+            messageOutputStream = System.out
+            configureKsp {
+                symbolProcessorProviders.add(SpiaProcessorProvider())
+                processorOptions["spia.outputPath"] = outputPath
+                processorOptions["spia.apiClient"] = "fetch"
+                incremental = false
+            }
+        }
+
+        val result = compilation.compile()
+        assertEquals(KotlinCompilation.ExitCode.OK, result.exitCode, "compilation should succeed")
+
+        assertTrue(File(outputPath).exists(), "SDK file not generated")
+        val sdk = File(outputPath).readText()
+
+        // AC-1: ApiError class must be present in the generated SDK
+        assertTrue(sdk.contains("class ApiError"), "class ApiError missing from SDK")
+        assertTrue(sdk.contains("extends Error"), "ApiError must extend Error")
+        assertTrue(sdk.contains("public status: number"), "ApiError must have public status: number")
+        assertTrue(sdk.contains("constructor"), "ApiError must have a constructor")
+    }
+
+    @Test
+    fun `EC-11 fetch non-2xx throws ApiError not generic Error`(@TempDir tempDir: File) {
+        val outputPath = File(tempDir, "generated/api-sdk.ts").absolutePath
+
+        val source = SourceFile.kotlin(
+            "ThrowController.kt",
+            """
+            package test
+
+            import org.springframework.web.bind.annotation.RestController
+            import org.springframework.web.bind.annotation.GetMapping
+            import org.springframework.web.bind.annotation.PathVariable
+
+            data class Item(val id: Long, val name: String)
+
+            @RestController
+            class ThrowController {
+                @GetMapping("/items/{id}")
+                fun getItem(@PathVariable id: Long): Item = Item(id, "stub")
+            }
+            """.trimIndent()
+        )
+
+        val compilation = KotlinCompilation().apply {
+            sources = listOf(source, coreSpringStubs())
+            inheritClassPath = true
+            messageOutputStream = System.out
+            configureKsp {
+                symbolProcessorProviders.add(SpiaProcessorProvider())
+                processorOptions["spia.outputPath"] = outputPath
+                processorOptions["spia.apiClient"] = "fetch"
+                incremental = false
+            }
+        }
+
+        val result = compilation.compile()
+        assertEquals(KotlinCompilation.ExitCode.OK, result.exitCode, "compilation should succeed")
+
+        val sdk = File(outputPath).readText()
+
+        // AC-3: non-2xx must throw ApiError, not plain Error
+        assertTrue(sdk.contains("throw new ApiError"), "throw new ApiError missing in fetch template")
+        assertFalse(sdk.contains("throw new Error("), "throw new Error() should have been replaced by throw new ApiError")
+    }
+
+    @Test
+    fun `EC-11 ControllerAdvice ExceptionHandler emits typed error aliases`(@TempDir tempDir: File) {
+        val outputPath = File(tempDir, "generated/api-sdk.ts").absolutePath
+
+        val source = SourceFile.kotlin(
+            "ErrorAliasController.kt",
+            """
+            package test
+
+            import org.springframework.web.bind.annotation.RestController
+            import org.springframework.web.bind.annotation.GetMapping
+            import org.springframework.web.bind.annotation.RestControllerAdvice
+            import org.springframework.web.bind.annotation.ExceptionHandler
+            import org.springframework.web.bind.annotation.ResponseStatus
+            import org.springframework.http.HttpStatus
+
+            data class NotFoundError(val message: String)
+            data class BadRequestError(val field: String, val reason: String)
+
+            @RestControllerAdvice
+            class GlobalErrorAdvice {
+                @ExceptionHandler(NoSuchElementException::class)
+                @ResponseStatus(HttpStatus.NOT_FOUND)
+                fun notFound(ex: NoSuchElementException): NotFoundError = NotFoundError(ex.message ?: "not found")
+
+                @ExceptionHandler(IllegalArgumentException::class)
+                @ResponseStatus(HttpStatus.BAD_REQUEST)
+                fun badRequest(ex: IllegalArgumentException): BadRequestError = BadRequestError("field", ex.message ?: "bad")
+            }
+
+            @RestController
+            class ErrorAliasController {
+                @GetMapping("/items")
+                fun getItems(): List<String> = emptyList()
+            }
+            """.trimIndent()
+        )
+
+        val compilation = KotlinCompilation().apply {
+            sources = listOf(source, coreSpringStubs(), httpStatusStubs(), responseStatusStubs())
+            inheritClassPath = true
+            messageOutputStream = System.out
+            configureKsp {
+                symbolProcessorProviders.add(SpiaProcessorProvider())
+                processorOptions["spia.outputPath"] = outputPath
+                processorOptions["spia.apiClient"] = "fetch"
+                incremental = false
+            }
+        }
+
+        val result = compilation.compile()
+        assertEquals(KotlinCompilation.ExitCode.OK, result.exitCode, "compilation should succeed")
+
+        val sdk = File(outputPath).readText()
+
+        // AC-1: ApiError class must still be present
+        assertTrue(sdk.contains("class ApiError"), "class ApiError missing from SDK")
+
+        // AC-2: typed error aliases must be emitted for endpoints that have error responses
+        assertTrue(sdk.contains("ApiError<"), "ApiError generic usage missing in error alias")
     }
 
     @Test
