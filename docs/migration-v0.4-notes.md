@@ -4,6 +4,8 @@
 
 ## DSL changes
 
+- `ClientOptions` (fetch mode) gains two new optional fields: `authInterceptor` for injecting auth headers before each request, and `retry` for configuring automatic retry with backoff on server errors (status >= 500). Both are opt-in; existing clients require no changes.
+
 ## Generated SDK shape changes
 
 - Kotlin `sealed class` annotated with `@JsonTypeInfo(use=NAME, property="…")` is now emitted as a TypeScript discriminated union (`type Shape = ({ kind: 'circle' } & Circle) | …`) instead of requiring a manual nullable-field DTO workaround.

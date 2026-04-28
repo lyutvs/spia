@@ -414,3 +414,61 @@ try {
 | `@ControllerAdvice` / `@RestControllerAdvice` | SPIA scans all `@ExceptionHandler` methods and merges their return types as global error responses for every endpoint. |
 | `@ExceptionHandler` inside a `@RestController` | Local error handlers override global ones for that controller's endpoints. |
 | `@ResponseStatus(HttpStatus.X)` on an `@ExceptionHandler` method | Maps the return type to the given HTTP status code. |
+
+## Configuring the client
+
+When using `apiClient = "fetch"` (the default), the generated `createApi` accepts a `ClientOptions` object with two optional fields: `authInterceptor` and `retry`.
+
+### Auth interceptor
+
+`authInterceptor` is a function that receives the `RequestInit` object before each fetch call and returns a (potentially modified) `RequestInit`. This supports synchronous and asynchronous flows such as attaching an `Authorization` header or refreshing a token:
+
+```typescript
+import { createApi } from './generated/api-sdk';
+
+const api = createApi({
+  baseUrl: 'https://api.example.com',
+  authInterceptor: async (request) => ({
+    ...request,
+    headers: {
+      ...(request.headers as Record<string, string>),
+      Authorization: `Bearer ${await getAccessToken()}`,
+    },
+  }),
+});
+```
+
+### Retry
+
+`retry` configures automatic retry for failed requests. By default retry is **off** (`maxAttempts: 0`). When enabled, the SDK retries on server errors (status >= 500) with a fixed backoff:
+
+```typescript
+import { createApi, ApiError } from './generated/api-sdk';
+
+const api = createApi({
+  baseUrl: 'https://api.example.com',
+  retry: {
+    maxAttempts: 3,      // retry up to 3 additional times
+    backoffMs: 200,      // wait 200 ms between attempts
+    retryOn: (status) => status >= 500,  // default — retries 503, not 400
+  },
+});
+```
+
+The retry logic catches `ApiError` specifically (not the base `Error` class) and inspects `error.status` to decide whether to retry:
+
+- Status `503` (or any `>= 500`): retried up to `maxAttempts` times with `backoffMs` delay.
+- Status `400` (or any `< 500`): immediately re-thrown — client errors are not retried.
+
+### Combined example
+
+```typescript
+const api = createApi({
+  baseUrl: 'https://api.example.com',
+  authInterceptor: async (req) => ({
+    ...req,
+    headers: { ...(req.headers as Record<string, string>), Authorization: `Bearer ${token}` },
+  }),
+  retry: { maxAttempts: 2, backoffMs: 300 },
+});
+```

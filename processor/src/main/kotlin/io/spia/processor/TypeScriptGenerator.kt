@@ -207,6 +207,8 @@ class TypeScriptGenerator(private val config: SdkConfig) {
             ApiClient.FETCH -> {
                 sb.appendLine("export interface ClientOptions {")
                 sb.appendLine("  baseUrl?: string;")
+                sb.appendLine("  authInterceptor?: (request: RequestInit) => RequestInit | Promise<RequestInit>;")
+                sb.appendLine("  retry?: { maxAttempts: number; backoffMs: number; retryOn?: (status: number) => boolean };")
                 sb.appendLine("}")
                 sb.appendLine()
                 "options?: ClientOptions"
@@ -346,15 +348,23 @@ class TypeScriptGenerator(private val config: SdkConfig) {
                     sb.appendLine("        $line")
                 }
 
+                // Retry + auth configuration — defaults: maxAttempts=0 (off), backoffMs=200, retryOn=status>=500
+                sb.appendLine("        const __maxAttempts = options?.retry?.maxAttempts ?? 0;")
+                sb.appendLine("        const __backoffMs = options?.retry?.backoffMs ?? 200;")
+                sb.appendLine("        const __retryOn = options?.retry?.retryOn ?? ((s: number) => s >= 500);")
+                sb.appendLine("        let __attempt = 0;")
+                sb.appendLine("        // eslint-disable-next-line no-constant-condition")
+                sb.appendLine("        while (true) {")
+
                 if (multipartParams.isNotEmpty()) {
                     // Multipart: build FormData and use as body (no Content-Type — browser sets boundary)
-                    sb.appendLine("        const formData = new FormData();")
+                    sb.appendLine("          const formData = new FormData();")
                     for (mp in multipartParams) {
                         val fieldName = mp.headerName ?: mp.name
                         if (mp.type is TypeInfo.Array) {
-                            sb.appendLine("        ${mp.name}.forEach(f => formData.append('$fieldName', f));")
+                            sb.appendLine("          ${mp.name}.forEach(f => formData.append('$fieldName', f));")
                         } else {
-                            sb.appendLine("        formData.append('$fieldName', ${mp.name});")
+                            sb.appendLine("          formData.append('$fieldName', ${mp.name});")
                         }
                     }
                     if (headerParams.isNotEmpty()) {
@@ -362,9 +372,9 @@ class TypeScriptGenerator(private val config: SdkConfig) {
                             val key = p.headerName ?: p.name
                             "'$key': ${p.name}"
                         }
-                        sb.appendLine("        const res = await fetch($fetchUrl, { method: '${endpoint.httpMethod.name}', headers: { $headerEntries }, body: formData });")
+                        sb.appendLine("          let __req: RequestInit = { method: '${endpoint.httpMethod.name}', headers: { $headerEntries }, body: formData };")
                     } else {
-                        sb.appendLine("        const res = await fetch($fetchUrl, { method: '${endpoint.httpMethod.name}', body: formData });")
+                        sb.appendLine("          let __req: RequestInit = { method: '${endpoint.httpMethod.name}', body: formData };")
                     }
                 } else {
                     when (endpoint.httpMethod) {
@@ -374,9 +384,9 @@ class TypeScriptGenerator(private val config: SdkConfig) {
                                     val key = p.headerName ?: p.name
                                     "'$key': ${p.name}"
                                 }
-                                sb.appendLine("        const res = await fetch($fetchUrl, { method: '${endpoint.httpMethod.name}', headers: { $headerEntries } });")
+                                sb.appendLine("          let __req: RequestInit = { method: '${endpoint.httpMethod.name}', headers: { $headerEntries } };")
                             } else {
-                                sb.appendLine("        const res = await fetch($fetchUrl, { method: '${endpoint.httpMethod.name}' });")
+                                sb.appendLine("          let __req: RequestInit = { method: '${endpoint.httpMethod.name}' };")
                             }
                         }
                         HttpMethod.POST, HttpMethod.PUT, HttpMethod.PATCH -> {
@@ -386,17 +396,34 @@ class TypeScriptGenerator(private val config: SdkConfig) {
                                     val key = p.headerName ?: p.name
                                     "'$key': ${p.name}"
                                 }
-                                sb.appendLine("        const res = await fetch($fetchUrl, { method: '${endpoint.httpMethod.name}', headers: { 'Content-Type': 'application/json', $headerEntries }, body: JSON.stringify($bodyArg) });")
+                                sb.appendLine("          let __req: RequestInit = { method: '${endpoint.httpMethod.name}', headers: { 'Content-Type': 'application/json', $headerEntries }, body: JSON.stringify($bodyArg) };")
                             } else {
-                                sb.appendLine("        const res = await fetch($fetchUrl, { method: '${endpoint.httpMethod.name}', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify($bodyArg) });")
+                                sb.appendLine("          let __req: RequestInit = { method: '${endpoint.httpMethod.name}', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify($bodyArg) };")
                             }
                         }
                     }
                 }
-                sb.appendLine("        if (!res.ok) throw new ApiError(res.status, await res.json(), `SPIA ${endpoint.httpMethod.name} \${res.url} failed: \${res.status} \${res.statusText}`);")
+                // Apply authInterceptor before fetch (supports async token refresh)
+                sb.appendLine("          if (options?.authInterceptor) __req = await options.authInterceptor(__req);")
+                sb.appendLine("          try {")
+                sb.appendLine("            const res = await fetch($fetchUrl, __req);")
+                sb.appendLine("            if (!res.ok) throw new ApiError(res.status, await res.json(), `SPIA ${endpoint.httpMethod.name} \${res.url} failed: \${res.status} \${res.statusText}`);")
                 if (promiseType != "void") {
-                    sb.appendLine("        return res.json();")
+                    sb.appendLine("            return res.json();")
+                } else {
+                    sb.appendLine("            return;")
                 }
+                sb.appendLine("          } catch (error) {")
+                // P-04: catch ApiError specifically (not base Error), use error.status to decide retry
+                // 503 → retry (status >= 500 by default), 400 → no retry (status < 500)
+                sb.appendLine("            if (error instanceof ApiError && __retryOn(error.status) && __attempt < __maxAttempts) {")
+                sb.appendLine("              __attempt++;")
+                sb.appendLine("              await new Promise(r => setTimeout(r, __backoffMs));")
+                sb.appendLine("            } else {")
+                sb.appendLine("              throw error;")
+                sb.appendLine("            }")
+                sb.appendLine("          }")
+                sb.appendLine("        }")
                 sb.appendLine("      },")
             }
         }

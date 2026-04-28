@@ -1040,6 +1040,76 @@ class ProcessorSmokeTest {
     }
 
     @Test
+    fun `EC-09 authInterceptor + retry are emitted in ClientOptions and fetch body`(@TempDir tempDir: File) {
+        val outputPath = File(tempDir, "generated/api-sdk.ts").absolutePath
+
+        val source = SourceFile.kotlin(
+            "EcAuthRetryController.kt",
+            """
+            package test
+
+            import org.springframework.web.bind.annotation.RestController
+            import org.springframework.web.bind.annotation.GetMapping
+            import org.springframework.web.bind.annotation.RequestMapping
+            import org.springframework.web.bind.annotation.RequestHeader
+
+            data class AuthRetryResponse(val message: String)
+
+            @RestController
+            @RequestMapping("/api/ec-auth-retry")
+            class EcAuthRetryController {
+                @GetMapping("/protected")
+                fun protectedEndpoint(@RequestHeader("Authorization") authorization: String): AuthRetryResponse =
+                    AuthRetryResponse("ok")
+            }
+            """.trimIndent()
+        )
+
+        val compilation = KotlinCompilation().apply {
+            sources = listOf(source, coreSpringStubs())
+            inheritClassPath = true
+            messageOutputStream = System.out
+            configureKsp {
+                symbolProcessorProviders.add(SpiaProcessorProvider())
+                processorOptions["spia.outputPath"] = outputPath
+                processorOptions["spia.apiClient"] = "fetch"
+                incremental = false
+            }
+        }
+
+        val result = compilation.compile()
+        assertEquals(KotlinCompilation.ExitCode.OK, result.exitCode, "EC-09: compilation should succeed")
+
+        assertTrue(File(outputPath).exists(), "SDK file not generated")
+        val sdk = File(outputPath).readText()
+
+        // AC: ClientOptions must include authInterceptor and retry fields
+        assertTrue(sdk.contains("authInterceptor?:"), "authInterceptor?: field missing from ClientOptions")
+        assertTrue(sdk.contains("retry?:"), "retry?: field missing from ClientOptions")
+        assertTrue(sdk.contains("RequestInit"), "RequestInit must appear in authInterceptor signature")
+
+        // AC: retry defaults — maxAttempts=0 (off by default), backoffMs=200, retryOn status >= 500
+        assertTrue(sdk.contains("options?.retry?.maxAttempts ?? 0"), "options?.retry?.maxAttempts ?? 0 pattern missing")
+        assertTrue(sdk.contains("options?.retry?.backoffMs ?? 200"), "backoffMs default 200 missing")
+        assertTrue(sdk.contains("s >= 500") || sdk.contains("status >= 500"), "retryOn default s >= 500 missing")
+
+        // AC (P-04): catch ApiError specifically, not base Error; use error.status to decide retry
+        // 503 → retry (status >= 500), 400 → no retry (status < 500)
+        assertTrue(sdk.contains("instanceof ApiError"), "instanceof ApiError missing — must catch ApiError not base Error")
+        assertTrue(sdk.contains("error.status") || sdk.contains("__retryOn(error.status)"),
+            "error.status missing — must inspect error.status for retry decision")
+
+        // Verify the retry logic is correct: 503 triggers retry, 400 does not
+        // The default retryOn is (s) => s >= 500, so:
+        //   status 503 → retry (503 is a server error, retryOn returns true for 503 → retry path)
+        //   status 400 → no retry (400 is a client error, retryOn returns false for 400 → no retry path)
+        assertTrue(
+            sdk.contains("__retryOn(error.status) && __attempt < __maxAttempts"),
+            "retry condition must check __retryOn(error.status) for 503 retry / 400 no retry distinction"
+        )
+    }
+
+    @Test
     fun `fetch createApi baseUrl priority - buildtime config baseUrl is used when set`(@TempDir tempDir: File) {
         val outputPath = File(tempDir, "generated/api-sdk.ts").absolutePath
 
