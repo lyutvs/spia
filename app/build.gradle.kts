@@ -33,6 +33,7 @@ spia {
     outputPath = "frontend/src/generated/api-sdk.ts"
     enumStyle = "union"
     longType = "number"
+    schemaOutput = "zod"
     clientOptions {
         baseUrl = "/api"
     }

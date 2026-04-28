@@ -72,12 +72,21 @@ class TypeScriptGenerator(private val config: SdkConfig, private val logger: KSP
         }
 
         // Per-endpoint typed error aliases
+        val seenAliasNames = mutableSetOf<String>()
         val errorAliases = buildList {
             for (controller in controllers.sortedBy { it.name }) {
+                val ns = controllerToNamespace(controller.name)
                 for (endpoint in controller.endpoints) {
                     val errorTypes = endpoint.errorResponses.values.toList()
                     if (errorTypes.isEmpty()) continue
-                    val aliasName = endpoint.functionName.replaceFirstChar { it.uppercase() } + "Error"
+                    val baseName = endpoint.functionName.replaceFirstChar { it.uppercase() } + "Error"
+                    // Qualify with the controller namespace if the base name is already taken
+                    val aliasName = if (baseName !in seenAliasNames) {
+                        baseName
+                    } else {
+                        ns.replaceFirstChar { it.uppercase() } + baseName
+                    }
+                    seenAliasNames.add(aliasName)
                     val unionTs = if (errorTypes.size == 1) {
                         renderType(errorTypes.first())
                     } else {

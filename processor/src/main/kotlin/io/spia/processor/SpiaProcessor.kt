@@ -74,12 +74,12 @@ class SpiaProcessor(
         val controllerInfos = controllers.map { analyzer.analyze(it, globalErrors) }
         val tsContent = generator.generate(controllerInfos, typeResolver)
 
-        writeOutput(config, tsContent)
+        writeOutput(config, tsContent, typeResolver)
 
         return emptyList()
     }
 
-    private fun writeOutput(config: SdkConfig, content: String) {
+    private fun writeOutput(config: SdkConfig, content: String, typeResolver: TypeResolver? = null) {
         val outputPath = config.outputPath
         if (outputPath != null) {
             val file = File(outputPath)
@@ -87,6 +87,16 @@ class SpiaProcessor(
             updateLockfile(file, content)
             file.writeText(content)
             logger.info("SPIA: Generated SDK at $outputPath")
+
+            if (config.schemaOutput == SchemaOutput.ZOD && typeResolver != null) {
+                val zodFile = File(outputPath.removeSuffix(".ts") + ".zod.ts")
+                val zodContent = ZodSchemaGenerator().generate(
+                    typeResolver.allDtos(),
+                    typeResolver.allGenerics(),
+                )
+                zodFile.writeText(zodContent)
+                logger.info("SPIA: Generated Zod schemas at ${zodFile.absolutePath}")
+            }
         } else {
             // Default: write to build directory
             val projectDir = environment.options["spia.projectDir"] ?: error("SPIA plugin did not forward projectDir")
@@ -95,6 +105,16 @@ class SpiaProcessor(
             val file = File(defaultDir, "api-sdk.ts")
             file.writeText(content)
             logger.info("SPIA: Generated SDK at ${file.absolutePath}")
+
+            if (config.schemaOutput == SchemaOutput.ZOD && typeResolver != null) {
+                val zodFile = File(defaultDir, "api-sdk.zod.ts")
+                val zodContent = ZodSchemaGenerator().generate(
+                    typeResolver.allDtos(),
+                    typeResolver.allGenerics(),
+                )
+                zodFile.writeText(zodContent)
+                logger.info("SPIA: Generated Zod schemas at ${zodFile.absolutePath}")
+            }
         }
     }
 
@@ -175,6 +195,10 @@ class SpiaProcessor(
                 else -> ApiClient.AXIOS
             },
             baseUrl = options["spia.clientOptions.baseUrl"],
+            schemaOutput = when (options["spia.schemaOutput"]?.lowercase()) {
+                "zod" -> SchemaOutput.ZOD
+                else -> SchemaOutput.NONE
+            },
         )
     }
 }

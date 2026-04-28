@@ -15,6 +15,8 @@ abstract class SpiaExtension @Inject constructor(private val objects: ObjectFact
     abstract val longType: Property<String>
     abstract val apiClient: Property<String>
 
+    abstract val schemaOutput: Property<String>
+
     val clientOptions: ClientOptions = objects.newInstance(ClientOptions::class.java)
 
     fun clientOptions(action: Action<ClientOptions>) {
@@ -22,7 +24,6 @@ abstract class SpiaExtension @Inject constructor(private val objects: ObjectFact
     }
 
     // Reserved slots for upcoming tasks — uncomment and implement when the task lands:
-    // var schemaOutput: String = "none"          // task 07 (Zod schema output path)
     // var openApiOutput: String = "none"         // task 12 (OpenAPI spec output path)
     // var splitByController: Boolean = false     // task 18 (split output per controller)
     // val npmPackage: NpmPackageOptions?         // task 21 (npm publish options)

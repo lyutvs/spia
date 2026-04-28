@@ -8,6 +8,9 @@
     "typecheck:strict": "tsc --noEmit --strict",
     "integration": "tsx src/integration.ts"
   },
+  "dependencies": {
+    "zod": "^3.22.0"
+  },
   "devDependencies": {
     "@types/node": "^25.6.0",
     "typescript": "^6.0.3",
