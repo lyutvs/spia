@@ -52,6 +52,9 @@ jobs:
       - name: Verify configuration cache compatibility
         run: ./gradlew :app:kspKotlin --configuration-cache --no-daemon && ./gradlew :app:kspKotlin --configuration-cache --no-daemon
 
+      - name: Verify processor coverage thresholds
+        run: ./gradlew :processor:jacocoTestCoverageVerification --no-daemon
+
       - name: Upload coverage to Codecov
         if: always()
         continue-on-error: true

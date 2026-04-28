@@ -1,3 +1,5 @@
+import org.gradle.testing.jacoco.tasks.JacocoCoverageVerification
+
 plugins {
     kotlin("jvm")
     id("com.vanniktech.maven.publish") version "0.36.0"
@@ -35,6 +37,24 @@ tasks.named<JacocoReport>("jacocoTestReport") {
         html.required.set(true)
     }
 }
+tasks.named<JacocoCoverageVerification>("jacocoTestCoverageVerification") {
+    dependsOn(tasks.named("test"))
+    violationRules {
+        rule {
+            limit {
+                counter = "LINE"
+                value = "COVEREDRATIO"
+                minimum = "0.50".toBigDecimal()
+            }
+            limit {
+                counter = "BRANCH"
+                value = "COVEREDRATIO"
+                minimum = "0.30".toBigDecimal()
+            }
+        }
+    }
+}
+tasks.named("check") { dependsOn(tasks.named("jacocoTestCoverageVerification")) }
 
 mavenPublishing {
     publishToMavenCentral()

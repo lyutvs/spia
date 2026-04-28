@@ -14,6 +14,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 - Multi-module `outputPath` conflict now emits a `KSPLogger.warn` when two subprojects write the same SDK file (closes EC-10). A `<outputPath>.spia-lock` sidecar tracks module name + SHA-256 digest + ISO 8601 timestamp per writer.
 
+### Internal
+- `processor` test coverage raised from baseline 80% line / 47% branch to 83% line / 52% branch; JaCoCo violation rule enforces ≥50% line / ≥30% branch (closes EC-11). New parametrized tests cover all `TypeInfo` sealed `when` branches in `TypeScriptGenerator.renderType()`, nullable/generic/map/list/collection type variants in `TypeResolver.resolveByName()`, and all `ParameterKind` variants in `ControllerAnalyzer`.
+
 ## [0.3.0] - 2026-04-27
 
 ### Changed
