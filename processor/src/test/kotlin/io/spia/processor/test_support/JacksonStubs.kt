@@ -8,15 +8,15 @@ fun jacksonStubs(): SourceFile = SourceFile.kotlin(
     """
     package com.fasterxml.jackson.annotation
 
-    @Target(AnnotationTarget.FIELD, AnnotationTarget.FUNCTION, AnnotationTarget.PROPERTY,
+    @Target(AnnotationTarget.FIELD, AnnotationTarget.FUNCTION,
             AnnotationTarget.VALUE_PARAMETER, AnnotationTarget.CLASS)
     annotation class JsonProperty(val value: String = "")
 
-    @Target(AnnotationTarget.FIELD, AnnotationTarget.FUNCTION, AnnotationTarget.PROPERTY,
+    @Target(AnnotationTarget.FIELD, AnnotationTarget.FUNCTION,
             AnnotationTarget.VALUE_PARAMETER)
     annotation class JsonAlias(vararg val value: String)
 
-    @Target(AnnotationTarget.FIELD, AnnotationTarget.FUNCTION, AnnotationTarget.PROPERTY,
+    @Target(AnnotationTarget.FIELD, AnnotationTarget.FUNCTION,
             AnnotationTarget.VALUE_PARAMETER, AnnotationTarget.CLASS)
     annotation class JsonInclude(val value: Include = Include.USE_DEFAULTS) {
         enum class Include {

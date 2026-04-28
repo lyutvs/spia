@@ -96,9 +96,9 @@ No action required unless you had a manual workaround in place — remove it.
 | Annotation | Effect |
 |---|---|
 | `@NotNull`, `@Size`, `@Min`, `@Max`, `@Pattern`, `@NotBlank`, `@Email` (jakarta.validation.constraints) | Emitted as JSDoc tags: `@minLength`, `@maxLength`, `@minimum`, `@maximum`, `@pattern`, `@format email` |
-| `@JsonProperty("field_name")` | TypeScript property key is renamed to match the JSON wire name |
-| `@JsonAlias("a", "b")` | JSDoc `@alias a, b` comment emitted above the field |
-| `@JsonInclude(JsonInclude.Include.NON_NULL)` | Nullable field marked optional (`field?: T \| null`) instead of required-but-nullable |
+| `@JsonProperty("field_name")` | TypeScript property key is renamed to match the JSON wire name. Supports both bare ctor-param style (`@JsonProperty("x") val x`) and explicit `@field:` use-site target style. |
+| `@JsonAlias("a", "b")` | JSDoc `@alias a, b` comment emitted above the field. Recognized on VALUE_PARAMETER (bare ctor param) and FIELD/PROPERTY sites. |
+| `@JsonInclude(JsonInclude.Include.NON_NULL)` | Nullable field marked optional (`field?: T \| null`) instead of required-but-nullable. Works whether the annotation appears on the ctor param directly or with an explicit `@field:` use-site target. |
 | `@CookieValue` | Cookie parameters collected into `cookies?: Record<string, string>`; SDK emits a `Cookie: k=v` header |
 | `@MatrixVariable` | Treated as a query-string parameter |
 | `@ModelAttribute` | DTO fields flattened into individual query-string parameters |
@@ -122,6 +122,6 @@ The following workarounds from v0.2.0 / v0.3.0 are no longer necessary and shoul
 
 - **Sealed class nullable-field DTO workaround** — replace with the generated discriminated union type directly.
 - **Pageable manual parameter listing** — remove hand-written `page?: number; size?: number; sort?: string` shims; SPIA now generates them automatically.
-- **`@JsonProperty` name mismatch workaround** — remove any Kotlin property aliases or manual field-name adjustments; `@JsonProperty` is now recognized.
-- **`@JsonInclude(NON_NULL)` optional marking** — remove TypeScript-side `?` hacks; SPIA now emits the correct optional modifier.
+- **`@JsonProperty` name mismatch workaround** — remove any Kotlin property aliases or manual field-name adjustments; `@JsonProperty` is now recognized. Both the bare ctor-param style (`@JsonProperty("x") val x: String`) and the explicit `@field:` use-site target style (`@field:JsonProperty("x") val x: String`) are supported. The bare ctor style is the most common pattern and was previously broken (G-01 fix in v0.4.0).
+- **`@JsonInclude(NON_NULL)` optional marking** — remove TypeScript-side `?` hacks; SPIA now emits the correct optional modifier. Recognized on both bare VALUE_PARAMETER annotations and explicit `@field:` use-site annotations.
 - **Bean Validation TypeScript-side duplication** — remove manual TypeScript validation schemas that duplicated `@NotNull` / `@Size` / etc.; the JSDoc tags from SPIA provide that information to IDE tooling.

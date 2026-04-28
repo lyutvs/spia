@@ -8,16 +8,19 @@ export const ApiResponseSchema = (z_D: z.ZodTypeAny, z_E: z.ZodTypeAny) => z.obj
   success: z.boolean(),
 });
 
-export const PageSchema = (z_T: z.ZodTypeAny) => z.object({
+export const WrapperSchema = (z_T: z.ZodTypeAny) => z.object({
+  name: z.string().min(1).max(30),
+  items: z.array(z_T),
+});
+
+export const domain_PageSchema = (z_T: z.ZodTypeAny) => z.object({
+});
+
+export const dto_PageSchema = (z_T: z.ZodTypeAny) => z.object({
   content: z.array(z_T),
   totalElements: z.number(),
   page: z.number(),
   size: z.number(),
-});
-
-export const WrapperSchema = (z_T: z.ZodTypeAny) => z.object({
-  name: z.string().min(1).max(30),
-  items: z.array(z_T),
 });
 
 export const AddressSchema = z.object({
@@ -56,6 +59,12 @@ export const EcJavaDtoSchema = z.object({
 });
 export type EcJavaDtoSchema = z.infer<typeof EcJavaDtoSchema>;
 
+export const EcPageableItemSchema = z.object({
+  id: z.number(),
+  name: z.string(),
+});
+export type EcPageableItemSchema = z.infer<typeof EcPageableItemSchema>;
+
 export const EcTimeoutResponseSchema = z.object({
   message: z.string(),
   delayMs: z.number(),
@@ -77,13 +86,13 @@ export const InternalErrorDtoSchema = z.object({
 export type InternalErrorDtoSchema = z.infer<typeof InternalErrorDtoSchema>;
 
 export const JacksonUserRequestSchema = z.object({
-  userName: z.string(),
+  user_name: z.string(),
   bio: z.string().nullable(),
 });
 export type JacksonUserRequestSchema = z.infer<typeof JacksonUserRequestSchema>;
 
 export const JacksonUserResponseSchema = z.object({
-  userName: z.string(),
+  user_name: z.string(),
   bio: z.string().nullable(),
 });
 export type JacksonUserResponseSchema = z.infer<typeof JacksonUserResponseSchema>;
@@ -94,12 +103,29 @@ export const NotFoundErrorDtoSchema = z.object({
 });
 export type NotFoundErrorDtoSchema = z.infer<typeof NotFoundErrorDtoSchema>;
 
+export const PageableSchema = z.object({
+  paged: z.boolean(),
+  unpaged: z.boolean(),
+  pageNumber: z.number(),
+  pageSize: z.number(),
+  offset: z.number(),
+  sort: z.lazy(() => SortSchema),
+});
+export type PageableSchema = z.infer<typeof PageableSchema>;
+
 export const SearchFilterSchema = z.object({
   keyword: z.string(),
   page: z.number(),
   size: z.number(),
 });
 export type SearchFilterSchema = z.infer<typeof SearchFilterSchema>;
+
+export const SortSchema = z.object({
+  sorted: z.boolean(),
+  empty: z.boolean(),
+  unsorted: z.boolean(),
+});
+export type SortSchema = z.infer<typeof SortSchema>;
 
 export const SquareSchema = z.object({
   side: z.number(),
@@ -123,6 +149,12 @@ export const UpdateUserRequestSchema = z.object({
   bio: z.string().nullable(),
 });
 export type UpdateUserRequestSchema = z.infer<typeof UpdateUserRequestSchema>;
+
+export const UserDtoSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+});
+export type UserDtoSchema = z.infer<typeof UserDtoSchema>;
 
 export const UserProfileDtoSchema = z.object({
   id: z.number(),

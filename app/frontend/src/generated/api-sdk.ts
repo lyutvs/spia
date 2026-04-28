@@ -56,6 +56,11 @@ export interface EcJavaDto {
   score: number;
 }
 
+export interface EcPageableItem {
+  id: number;
+  name: string;
+}
+
 export interface EcTimeoutResponse {
   message: string;
   delayMs: number;
@@ -88,13 +93,16 @@ export interface InternalErrorDto {
 }
 
 export interface JacksonUserRequest {
-  userName: string;
-  bio: string | null;
+  /**
+   * @alias name, userName
+   */
+  user_name: string;
+  bio?: string | null;
 }
 
 export interface JacksonUserResponse {
-  userName: string;
-  bio: string | null;
+  user_name: string;
+  bio?: string | null;
 }
 
 export interface NotFoundErrorDto {
@@ -102,10 +110,25 @@ export interface NotFoundErrorDto {
   resource: string | null;
 }
 
+export interface Pageable {
+  paged: boolean;
+  unpaged: boolean;
+  pageNumber: number;
+  pageSize: number;
+  offset: number;
+  sort: Sort;
+}
+
 export interface SearchFilter {
   keyword: string;
   page: number;
   size: number;
+}
+
+export interface Sort {
+  sorted: boolean;
+  empty: boolean;
+  unsorted: boolean;
 }
 
 export interface Tick {
@@ -116,6 +139,11 @@ export interface Tick {
 export interface UpdateUserRequest {
   email: string | null;
   bio: string | null;
+}
+
+export interface UserDto {
+  id: string;
+  name: string;
 }
 
 export interface UserProfileDto {
@@ -142,13 +170,6 @@ export interface ApiResponse<D, E> {
   success: boolean;
 }
 
-export interface Page<T> {
-  content: T[];
-  totalElements: number;
-  page: number;
-  size: number;
-}
-
 export interface Wrapper<T> {
   /**
    * @minLength 1
@@ -156,6 +177,16 @@ export interface Wrapper<T> {
    */
   name: string;
   items: T[];
+}
+
+export interface domain_Page<T> {
+}
+
+export interface dto_Page<T> {
+  content: T[];
+  totalElements: number;
+  page: number;
+  size: number;
 }
 
 /* ──────────── Endpoint Error Aliases ──────────── */
@@ -166,10 +197,14 @@ export type CreateUserError = ApiError<BadRequestErrorDto | NotFoundErrorDto | I
 export type SampleUserError = ApiError<BadRequestErrorDto | NotFoundErrorDto | InternalErrorDto>;
 export type GetError = ApiError<BadRequestErrorDto | NotFoundErrorDto | InternalErrorDto>;
 export type CreateError = ApiError<BadRequestErrorDto | NotFoundErrorDto | InternalErrorDto>;
+export type ListError = ApiError<BadRequestErrorDto | NotFoundErrorDto | InternalErrorDto>;
 export type SearchError = ApiError<BadRequestErrorDto | NotFoundErrorDto | InternalErrorDto>;
 export type WhoamiError = ApiError<BadRequestErrorDto | NotFoundErrorDto | InternalErrorDto>;
 export type RequestAttrError = ApiError<BadRequestErrorDto | NotFoundErrorDto | InternalErrorDto>;
 export type GetItemWithMatrixError = ApiError<BadRequestErrorDto | NotFoundErrorDto | InternalErrorDto>;
+export type GetMonoError = ApiError<BadRequestErrorDto | NotFoundErrorDto | InternalErrorDto>;
+export type GetFluxError = ApiError<BadRequestErrorDto | NotFoundErrorDto | InternalErrorDto>;
+export type GetSuspendError = ApiError<BadRequestErrorDto | NotFoundErrorDto | InternalErrorDto>;
 export type GetCircleError = ApiError<BadRequestErrorDto | NotFoundErrorDto | InternalErrorDto>;
 export type GetSquareError = ApiError<BadRequestErrorDto | NotFoundErrorDto | InternalErrorDto>;
 export type GetTriangleError = ApiError<BadRequestErrorDto | NotFoundErrorDto | InternalErrorDto>;
@@ -442,6 +477,51 @@ export function createApi(options?: ClientOptions) {
       },
 
     },
+    ecPageable: {
+      list: async (page?: number, size?: number, sort?: string, signal?: AbortSignal): Promise<domain_Page<EcPageableItem>> => {
+        const params = new URLSearchParams();
+        if (page !== undefined) params.append('page', String(page));
+        if (size !== undefined) params.append('size', String(size));
+        if (sort !== undefined) params.append('sort', String(sort));
+        const qs = params.toString();
+        const __timeoutMs = options?.timeoutMs;
+        const __controller = new AbortController();
+        let __timeoutId: ReturnType<typeof setTimeout> | undefined;
+        if (__timeoutMs !== undefined) {
+          __timeoutId = setTimeout(() => __controller.abort(new ApiTimeoutError()), __timeoutMs);
+        }
+        const __signals = [__controller.signal, ...(signal ? [signal] : [])];
+        const __signal = __signals.length > 1 ? AbortSignal.any(__signals) : __controller.signal;
+        const __maxAttempts = options?.retry?.maxAttempts ?? 0;
+        const __backoffMs = options?.retry?.backoffMs ?? 200;
+        const __retryOn = options?.retry?.retryOn ?? ((s: number) => s >= 500);
+        let __attempt = 0;
+        // eslint-disable-next-line no-constant-condition
+        while (true) {
+          let __req: RequestInit = { method: 'GET', signal: __signal };
+          if (options?.authInterceptor) __req = await options.authInterceptor(__req);
+          try {
+            const res = await fetch(`${_baseUrl}/api/ec/pageable${qs ? `?${qs}` : ''}`, __req);
+            if (!res.ok) throw new ApiError(res.status, await res.json(), `SPIA GET ${res.url} failed: ${res.status} ${res.statusText}`);
+            clearTimeout(__timeoutId);
+            return res.json();
+          } catch (error) {
+            if (error instanceof Error && error.name === 'AbortError') {
+              clearTimeout(__timeoutId);
+              throw new ApiTimeoutError();
+            }
+            if (error instanceof ApiError && __retryOn(error.status) && __attempt < __maxAttempts) {
+              __attempt++;
+              await new Promise(r => setTimeout(r, __backoffMs));
+            } else {
+              clearTimeout(__timeoutId);
+              throw error;
+            }
+          }
+        }
+      },
+
+    },
     ecParameterKinds2: {
       /**
        * Endpoint using @ModelAttribute — DTO fields flattened into query string.
@@ -588,6 +668,122 @@ export function createApi(options?: ClientOptions) {
           if (options?.authInterceptor) __req = await options.authInterceptor(__req);
           try {
             const res = await fetch(`${_baseUrl}/api/ec-param-kinds2/items/${encodeURIComponent(String(id))}?color=${encodeURIComponent(String(color))}`, __req);
+            if (!res.ok) throw new ApiError(res.status, await res.json(), `SPIA GET ${res.url} failed: ${res.status} ${res.statusText}`);
+            clearTimeout(__timeoutId);
+            return res.json();
+          } catch (error) {
+            if (error instanceof Error && error.name === 'AbortError') {
+              clearTimeout(__timeoutId);
+              throw new ApiTimeoutError();
+            }
+            if (error instanceof ApiError && __retryOn(error.status) && __attempt < __maxAttempts) {
+              __attempt++;
+              await new Promise(r => setTimeout(r, __backoffMs));
+            } else {
+              clearTimeout(__timeoutId);
+              throw error;
+            }
+          }
+        }
+      },
+
+    },
+    ecReactive: {
+      getMono: async (signal?: AbortSignal): Promise<UserDto> => {
+        const __timeoutMs = options?.timeoutMs;
+        const __controller = new AbortController();
+        let __timeoutId: ReturnType<typeof setTimeout> | undefined;
+        if (__timeoutMs !== undefined) {
+          __timeoutId = setTimeout(() => __controller.abort(new ApiTimeoutError()), __timeoutMs);
+        }
+        const __signals = [__controller.signal, ...(signal ? [signal] : [])];
+        const __signal = __signals.length > 1 ? AbortSignal.any(__signals) : __controller.signal;
+        const __maxAttempts = options?.retry?.maxAttempts ?? 0;
+        const __backoffMs = options?.retry?.backoffMs ?? 200;
+        const __retryOn = options?.retry?.retryOn ?? ((s: number) => s >= 500);
+        let __attempt = 0;
+        // eslint-disable-next-line no-constant-condition
+        while (true) {
+          let __req: RequestInit = { method: 'GET', signal: __signal };
+          if (options?.authInterceptor) __req = await options.authInterceptor(__req);
+          try {
+            const res = await fetch(`${_baseUrl}/api/ec-reactive/mono`, __req);
+            if (!res.ok) throw new ApiError(res.status, await res.json(), `SPIA GET ${res.url} failed: ${res.status} ${res.statusText}`);
+            clearTimeout(__timeoutId);
+            return res.json();
+          } catch (error) {
+            if (error instanceof Error && error.name === 'AbortError') {
+              clearTimeout(__timeoutId);
+              throw new ApiTimeoutError();
+            }
+            if (error instanceof ApiError && __retryOn(error.status) && __attempt < __maxAttempts) {
+              __attempt++;
+              await new Promise(r => setTimeout(r, __backoffMs));
+            } else {
+              clearTimeout(__timeoutId);
+              throw error;
+            }
+          }
+        }
+      },
+
+      getFlux: async (signal?: AbortSignal): Promise<UserDto[]> => {
+        const __timeoutMs = options?.timeoutMs;
+        const __controller = new AbortController();
+        let __timeoutId: ReturnType<typeof setTimeout> | undefined;
+        if (__timeoutMs !== undefined) {
+          __timeoutId = setTimeout(() => __controller.abort(new ApiTimeoutError()), __timeoutMs);
+        }
+        const __signals = [__controller.signal, ...(signal ? [signal] : [])];
+        const __signal = __signals.length > 1 ? AbortSignal.any(__signals) : __controller.signal;
+        const __maxAttempts = options?.retry?.maxAttempts ?? 0;
+        const __backoffMs = options?.retry?.backoffMs ?? 200;
+        const __retryOn = options?.retry?.retryOn ?? ((s: number) => s >= 500);
+        let __attempt = 0;
+        // eslint-disable-next-line no-constant-condition
+        while (true) {
+          let __req: RequestInit = { method: 'GET', signal: __signal };
+          if (options?.authInterceptor) __req = await options.authInterceptor(__req);
+          try {
+            const res = await fetch(`${_baseUrl}/api/ec-reactive/flux`, __req);
+            if (!res.ok) throw new ApiError(res.status, await res.json(), `SPIA GET ${res.url} failed: ${res.status} ${res.statusText}`);
+            clearTimeout(__timeoutId);
+            return res.json();
+          } catch (error) {
+            if (error instanceof Error && error.name === 'AbortError') {
+              clearTimeout(__timeoutId);
+              throw new ApiTimeoutError();
+            }
+            if (error instanceof ApiError && __retryOn(error.status) && __attempt < __maxAttempts) {
+              __attempt++;
+              await new Promise(r => setTimeout(r, __backoffMs));
+            } else {
+              clearTimeout(__timeoutId);
+              throw error;
+            }
+          }
+        }
+      },
+
+      getSuspend: async (signal?: AbortSignal): Promise<UserDto> => {
+        const __timeoutMs = options?.timeoutMs;
+        const __controller = new AbortController();
+        let __timeoutId: ReturnType<typeof setTimeout> | undefined;
+        if (__timeoutMs !== undefined) {
+          __timeoutId = setTimeout(() => __controller.abort(new ApiTimeoutError()), __timeoutMs);
+        }
+        const __signals = [__controller.signal, ...(signal ? [signal] : [])];
+        const __signal = __signals.length > 1 ? AbortSignal.any(__signals) : __controller.signal;
+        const __maxAttempts = options?.retry?.maxAttempts ?? 0;
+        const __backoffMs = options?.retry?.backoffMs ?? 200;
+        const __retryOn = options?.retry?.retryOn ?? ((s: number) => s >= 500);
+        let __attempt = 0;
+        // eslint-disable-next-line no-constant-condition
+        while (true) {
+          let __req: RequestInit = { method: 'GET', signal: __signal };
+          if (options?.authInterceptor) __req = await options.authInterceptor(__req);
+          try {
+            const res = await fetch(`${_baseUrl}/api/ec-reactive/suspend`, __req);
             if (!res.ok) throw new ApiError(res.status, await res.json(), `SPIA GET ${res.url} failed: ${res.status} ${res.statusText}`);
             clearTimeout(__timeoutId);
             return res.json();
@@ -1250,7 +1446,7 @@ export function createApi(options?: ClientOptions) {
        * @param {number} [page=0] Server default: 0
        * @param {number} [size=20] Server default: 20
        */
-      listUsers: async (page?: number, size?: number, keyword?: string, signal?: AbortSignal): Promise<Page<UserProfileDto>> => {
+      listUsers: async (page?: number, size?: number, keyword?: string, signal?: AbortSignal): Promise<dto_Page<UserProfileDto>> => {
         const params = new URLSearchParams();
         if (page !== undefined) params.append('page', String(page));
         if (size !== undefined) params.append('size', String(size));
