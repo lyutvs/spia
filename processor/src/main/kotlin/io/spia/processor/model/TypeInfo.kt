@@ -70,4 +70,5 @@ data class FieldInfo(
     val serializedName: String = name,
     val aliases: List<String> = emptyList(),
     val excludeWhenNull: Boolean = false,
+    val constraints: List<io.spia.processor.Constraint> = emptyList(),
 )

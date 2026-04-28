@@ -144,8 +144,17 @@ class TypeScriptGenerator(private val config: SdkConfig) {
     }
 
     private fun renderField(sb: StringBuilder, field: FieldInfo) {
-        if (field.aliases.isNotEmpty()) {
-            sb.appendLine("  /** @alias ${field.aliases.joinToString(", ")} */")
+        val hasConstraints = field.constraints.isNotEmpty()
+        val hasAliases = field.aliases.isNotEmpty()
+        if (hasConstraints || hasAliases) {
+            sb.appendLine("  /**")
+            if (hasAliases) {
+                sb.appendLine("   * @alias ${field.aliases.joinToString(", ")}")
+            }
+            for (constraint in field.constraints) {
+                sb.appendLine("   * @${constraint.keyword} ${constraint.value}")
+            }
+            sb.appendLine("   */")
         }
         val tsType = renderType(field.type)
         val fieldName = field.serializedName

@@ -15,6 +15,7 @@ import io.spia.processor.test_support.javaController
 import io.spia.processor.test_support.javaDto
 import io.spia.processor.test_support.parameterStubs
 import io.spia.processor.test_support.responseStatusStubs
+import io.spia.processor.test_support.validationStubs
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.io.TempDir
 import java.io.File
@@ -1004,6 +1005,38 @@ class ProcessorSmokeTest {
 
         // baseUrl fallback: no buildtime baseUrl set, so falls back to ""
         assertTrue(sdk.contains("options?.baseUrl ??"), "baseUrl fallback chain missing")
+    }
+
+    @Test
+    fun `bean validation constraints surface as JSDoc in generated TS`(@TempDir tempDir: File) {
+        val outputPath = File(tempDir, "generated/api-sdk.ts").absolutePath
+
+        val compilation = KotlinCompilation().apply {
+            sources = listOf(coreSpringStubs()) + validationStubs()
+            inheritClassPath = true
+            messageOutputStream = System.out
+            configureKsp {
+                symbolProcessorProviders.add(SpiaProcessorProvider())
+                processorOptions["spia.outputPath"] = outputPath
+                processorOptions["spia.apiClient"] = "fetch"
+                incremental = false
+            }
+        }
+
+        val result = compilation.compile()
+        assertEquals(KotlinCompilation.ExitCode.OK, result.exitCode, "compilation should succeed")
+
+        assertTrue(File(outputPath).exists(), "SDK file not generated")
+        val sdk = File(outputPath).readText()
+
+        assertTrue(sdk.contains("@minLength 1"), "@minLength 1 JSDoc tag missing")
+        assertTrue(sdk.contains("@maxLength 50"), "@maxLength 50 JSDoc tag missing")
+        assertTrue(sdk.contains("Wrapper"), "Wrapper type missing from generated output")
+        // Wrapper<T>'s name field also has @minLength 1 (from Size(min=1, max=30))
+        assertTrue(
+            sdk.lines().count { it.contains("@minLength 1") } >= 2,
+            "Expected at least 2 @minLength 1 occurrences (ValRequest.name and ValWrapper.name)"
+        )
     }
 
     @Test

@@ -4,6 +4,7 @@ import com.google.devtools.ksp.symbol.ClassKind
 import com.google.devtools.ksp.symbol.KSAnnotated
 import com.google.devtools.ksp.symbol.KSClassDeclaration
 import com.google.devtools.ksp.symbol.KSFunctionDeclaration
+import com.google.devtools.ksp.symbol.KSPropertyDeclaration
 import com.google.devtools.ksp.symbol.KSType
 import com.google.devtools.ksp.symbol.KSTypeParameter
 import com.google.devtools.ksp.symbol.Modifier
@@ -219,6 +220,7 @@ class TypeResolver(private val config: SdkConfig) {
                         serializedName = JacksonAnnotationReader.renamedTo(prop) ?: propName,
                         aliases = JacksonAnnotationReader.aliases(prop),
                         excludeWhenNull = JacksonAnnotationReader.excludeWhenNull(prop),
+                        constraints = extractConstraints(prop),
                     )
                 }.toList()
                 val dto = TypeInfo.Dto(subTsName, subFields)
@@ -273,6 +275,7 @@ class TypeResolver(private val config: SdkConfig) {
                     serializedName = JacksonAnnotationReader.renamedTo(prop) ?: propName,
                     aliases = JacksonAnnotationReader.aliases(prop),
                     excludeWhenNull = JacksonAnnotationReader.excludeWhenNull(prop),
+                    constraints = extractConstraints(prop),
                 )
             }.toList()
 
@@ -302,6 +305,7 @@ class TypeResolver(private val config: SdkConfig) {
                     serializedName = JacksonAnnotationReader.renamedTo(prop) ?: propName,
                     aliases = JacksonAnnotationReader.aliases(prop),
                     excludeWhenNull = JacksonAnnotationReader.excludeWhenNull(prop),
+                    constraints = extractConstraints(prop),
                 )
             }.toList()
         } else {
@@ -313,6 +317,7 @@ class TypeResolver(private val config: SdkConfig) {
                     serializedName = JacksonAnnotationReader.renamedTo(prop) ?: propName,
                     aliases = JacksonAnnotationReader.aliases(prop),
                     excludeWhenNull = JacksonAnnotationReader.excludeWhenNull(prop),
+                    constraints = extractConstraints(prop),
                 )
             }.toList()
         }
@@ -374,6 +379,40 @@ class TypeResolver(private val config: SdkConfig) {
         return fn.annotations.any { ann ->
             ann.annotationType.resolve().declaration.qualifiedName?.asString() in nullableAnnotations
         }
+    }
+
+    private fun extractConstraints(prop: KSPropertyDeclaration): List<Constraint> {
+        val result = mutableListOf<Constraint>()
+        prop.annotations.forEach { ann ->
+            val fqn = ann.annotationType.resolve().declaration.qualifiedName?.asString()
+            when (fqn) {
+                SpringAnnotations.SIZE -> {
+                    val min = ann.arguments.firstOrNull { it.name?.asString() == "min" }?.value as? Int
+                    val max = ann.arguments.firstOrNull { it.name?.asString() == "max" }?.value as? Int
+                    if (min != null && min != 0) result += Constraint("minLength", min, null)
+                    if (max != null && max != Int.MAX_VALUE) result += Constraint("maxLength", max, null)
+                }
+                SpringAnnotations.MIN -> {
+                    val v = ann.arguments.firstOrNull { it.name?.asString() == "value" }?.value
+                    if (v != null) result += Constraint("minimum", v, null)
+                }
+                SpringAnnotations.MAX -> {
+                    val v = ann.arguments.firstOrNull { it.name?.asString() == "value" }?.value
+                    if (v != null) result += Constraint("maximum", v, null)
+                }
+                SpringAnnotations.PATTERN -> {
+                    val regexp = ann.arguments.firstOrNull { it.name?.asString() == "regexp" }?.value as? String
+                    if (regexp != null) result += Constraint("pattern", regexp, null)
+                }
+                SpringAnnotations.EMAIL -> {
+                    result += Constraint("format", "email", null)
+                }
+                SpringAnnotations.NOT_NULL, SpringAnnotations.NOT_BLANK -> {
+                    // represented by nullable=false — no extra constraint emitted
+                }
+            }
+        }
+        return result
     }
 
     private fun isStandardType(fqn: String): Boolean = when (fqn) {

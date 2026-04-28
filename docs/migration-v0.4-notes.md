@@ -10,6 +10,8 @@
 
 ## Annotations newly recognized
 
+- `jakarta.validation.constraints.{NotNull,Size,Min,Max,Pattern,NotBlank,Email}` — propagated to TS as JSDoc tags (`@minLength`, `@maxLength`, `@minimum`, `@maximum`, `@pattern`, `@format email`).
+
 ## Java support
 
 - Java `@RestController` classes are now processed (minimum support). Plain Java POJO fields are discovered via JavaBeans getter methods (`getXxx()` → `xxx`).

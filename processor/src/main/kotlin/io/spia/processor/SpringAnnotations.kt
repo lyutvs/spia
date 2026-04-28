@@ -19,6 +19,14 @@ object SpringAnnotations {
     const val CONTROLLER_ADVICE = "org.springframework.web.bind.annotation.ControllerAdvice"
     const val REST_CONTROLLER_ADVICE = "org.springframework.web.bind.annotation.RestControllerAdvice"
 
+    const val NOT_NULL = "jakarta.validation.constraints.NotNull"
+    const val SIZE = "jakarta.validation.constraints.Size"
+    const val MIN = "jakarta.validation.constraints.Min"
+    const val MAX = "jakarta.validation.constraints.Max"
+    const val PATTERN = "jakarta.validation.constraints.Pattern"
+    const val NOT_BLANK = "jakarta.validation.constraints.NotBlank"
+    const val EMAIL = "jakarta.validation.constraints.Email"
+
     val HTTP_METHOD_ANNOTATIONS = mapOf(
         GET_MAPPING to "GET",
         POST_MAPPING to "POST",

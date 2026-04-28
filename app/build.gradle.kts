@@ -20,7 +20,7 @@ dependencies {
     ksp(project(":processor"))
 
     // Dependency stubs reserved for upcoming tasks — uncomment when the task lands:
-    // implementation("org.springframework.boot:spring-boot-starter-validation") // task 04 (Bean Validation)
+    implementation("org.springframework.boot:spring-boot-starter-validation")
     // compileOnly("org.springframework.boot:spring-boot-starter-webflux")       // task 05 (Reactive/WebFlux)
     // implementation("com.fasterxml.jackson.module:jackson-module-kotlin")      // task 13 (Jackson customization)
 }
