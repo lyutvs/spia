@@ -44,9 +44,12 @@ first. No drift, no runtime spec, no template fight.
 | Kotlin `T?` nullability | `T \| null` preserved | depends on Jackson config | manual |
 | Multi-parameter generics (`Page<T>`, `ApiResponse<D, E>`) | emitted as interfaces | typically flattened | manual |
 | Runtime endpoint exposed | no | `/v3/api-docs` required | — |
-| Bean Validation (`@Valid`, `@Size`, …) | ❌ not in v0.2.0 | ✅ | — |
+| Bean Validation (`@Valid`, `@Size`, …) | ✅ JSDoc tags emitted | ✅ | — |
+| `sealed class` discriminated unions | ✅ (with `@JsonTypeInfo`) | partial | manual |
+| `Pageable` / Spring Data pagination | ✅ expanded inline | ✅ | manual |
+| Reactive / SSE (`Flux<ServerSentEvent<T>>`) | ✅ `AsyncIterable<T>` emitted | partial | manual |
 | Multi-language clients (Swift, Android, …) | ❌ TS only | ✅ | — |
-| Spring Security / auth flows | handled in your axios instance | partial | — |
+| Spring Security / auth flows | handled via `authInterceptor` in `ClientOptions` | partial | — |
 
 ### When SPIA is *not* the right fit
 
@@ -56,11 +59,9 @@ SPIA is deliberately narrow. Reach for `openapi-generator` or
 - **Multi-language clients** — iOS/Android native alongside web.
 - **OpenAPI spec as a deliverable** — for external partners, API gateways,
   or contract-first workflows.
-- **Bean Validation reflected in the generated SDK** — `@Valid`, `@Size`,
-  `@NotNull` carried through to the frontend types.
 - **A Java-only backend with Lombok** — Lombok-generated getters are not visible
   to KSP at annotation-processing time; Lombok POJOs will be emitted as empty interfaces.
-  Plain Java POJOs (no Lombok) are supported.
+  Plain Java POJOs (no Lombok) are supported as of v0.4.0.
 
 For everything else — a Kotlin Spring Boot backend talking to a TypeScript
 frontend — SPIA is the shortest path.
@@ -102,7 +103,7 @@ No runtime dependency is installed — the generated SDK uses the platform's
 built-in `fetch`. To switch to an axios-based SDK (e.g., for interceptors or
 custom auth), see [Configuration options](#configuration-options).
 
-## What's supported in v0.2.0
+## What's supported in v0.4.0
 
 | Pattern | Status | Notes |
 |---|:---:|---|
@@ -130,18 +131,14 @@ custom auth), see [Configuration options](#configuration-options).
 | fetch template | ✅ | Default; `createApi(baseUrl: string)`, `URLSearchParams`-backed query building, `encodeURIComponent` on paths, `if (!res.ok) throw` on every call |
 | axios template | ✅ | Opt-in via `apiClient = "axios"`; `createApi(client: AxiosInstance)` — delegate to the passed instance for interceptors/auth/retries |
 
-## Not supported in v0.2.0 (known exclusions)
+## Known exclusions in v0.4.0
 
-These are intentionally out of scope for the initial release. PRs welcome
-after v0.2.0.
-
-| Pattern | Workaround |
-|---|---|
-| Bean Validation (`@Valid`, `@NotNull`, `@Size`, …) | Use TypeScript-side validation; Spring validates at runtime |
-| Spring Security (`@PreAuthorize`, auth headers) | Handle auth in the axios instance passed to `createApi` |
-| `Pageable` / `Page` (Spring Data) | Now supported — `Pageable` parameters expand to `page?: number; size?: number; sort?: string` inline query fields |
-| `@JsonProperty` / `@JsonAlias` name overrides | Use matching Kotlin property names |
-| `ProblemDetail` / RFC 9457 error bodies | Wrap in your own DTO |
+| Pattern | Status | Workaround |
+|---|---|---|
+| Spring Security (`@PreAuthorize`, auth flows) | out of scope | Use `authInterceptor` in `ClientOptions` to attach auth headers |
+| `ProblemDetail` / RFC 9457 error bodies | out of scope | Wrap in your own DTO; typed `ApiError<T>` covers most cases |
+| Lombok-generated getters (Java) | not supported | Use plain Java POJOs with explicit getters, or Kotlin data classes |
+| Multi-language clients (Swift, Android) | TS only | Use `openapi-generator` for multi-language needs |
 
 ## Example — what the SDK looks like
 
