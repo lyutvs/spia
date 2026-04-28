@@ -28,6 +28,10 @@ class TypeScriptGenerator(private val config: SdkConfig, private val logger: KSP
         sb.appendLine("  constructor(public status: number, public data: T, message?: string) { super(message); }")
         sb.appendLine("}")
         sb.appendLine()
+        sb.appendLine("export class ApiTimeoutError extends Error {")
+        sb.appendLine("  constructor(message?: string) { super(message ?? 'Request timed out'); }")
+        sb.appendLine("}")
+        sb.appendLine()
 
         // DTO types section
         val dtos = typeResolver.allDtos()
@@ -239,6 +243,7 @@ class TypeScriptGenerator(private val config: SdkConfig, private val logger: KSP
             ApiClient.FETCH -> {
                 sb.appendLine("export interface ClientOptions {")
                 sb.appendLine("  baseUrl?: string;")
+                sb.appendLine("  timeoutMs?: number;")
                 sb.appendLine("  authInterceptor?: (request: RequestInit) => RequestInit | Promise<RequestInit>;")
                 sb.appendLine("  retry?: { maxAttempts: number; backoffMs: number; retryOn?: (status: number) => boolean };")
                 sb.appendLine("}")
@@ -354,6 +359,8 @@ class TypeScriptGenerator(private val config: SdkConfig, private val logger: KSP
                 }
             }
         }
+        // Always append signal?: AbortSignal as the last optional parameter
+        parts.add("signal?: AbortSignal")
         return parts.joinToString(", ")
     }
 
@@ -437,12 +444,12 @@ class TypeScriptGenerator(private val config: SdkConfig, private val logger: KSP
                             sb.appendLine("        formData.append('$fieldName', ${mp.name});")
                         }
                     }
-                    val axiosConfig = buildAxiosConfig(expandedQueryParams, headerParams, cookieParams)
+                    val axiosConfig = buildAxiosConfig(expandedQueryParams, headerParams, cookieParams, withSignal = true)
                     sb.appendLine("        return client.${endpoint.httpMethod.name.lowercase()}($tsPath, formData$axiosConfig).then(r => r.data);")
                     sb.appendLine("      },")
                 } else {
                     sb.append("      ${endpoint.functionName}: ($params): Promise<$promiseType> =>\n")
-                    val axiosConfig = buildAxiosConfig(expandedQueryParams, headerParams, cookieParams)
+                    val axiosConfig = buildAxiosConfig(expandedQueryParams, headerParams, cookieParams, withSignal = true)
                     when (endpoint.httpMethod) {
                         HttpMethod.GET, HttpMethod.DELETE -> {
                             sb.appendLine("        client.${endpoint.httpMethod.name.lowercase()}($tsPath$axiosConfig).then(r => r.data),")
@@ -483,6 +490,15 @@ class TypeScriptGenerator(private val config: SdkConfig, private val logger: KSP
 
                 val hasFetchHeaders = headerParams.isNotEmpty() || cookieParams.isNotEmpty()
 
+                // Timeout + AbortSignal setup
+                sb.appendLine("        const __timeoutMs = options?.timeoutMs;")
+                sb.appendLine("        const __controller = new AbortController();")
+                sb.appendLine("        let __timeoutId: ReturnType<typeof setTimeout> | undefined;")
+                sb.appendLine("        if (__timeoutMs !== undefined) {")
+                sb.appendLine("          __timeoutId = setTimeout(() => __controller.abort(new ApiTimeoutError()), __timeoutMs);")
+                sb.appendLine("        }")
+                sb.appendLine("        const __signals = [__controller.signal, ...(signal ? [signal] : [])];")
+                sb.appendLine("        const __signal = __signals.length > 1 ? AbortSignal.any(__signals) : __controller.signal;")
                 // Retry + auth configuration — defaults: maxAttempts=0 (off), backoffMs=200, retryOn=status>=500
                 sb.appendLine("        const __maxAttempts = options?.retry?.maxAttempts ?? 0;")
                 sb.appendLine("        const __backoffMs = options?.retry?.backoffMs ?? 200;")
@@ -504,27 +520,27 @@ class TypeScriptGenerator(private val config: SdkConfig, private val logger: KSP
                     }
                     if (hasFetchHeaders) {
                         val headerEntries = buildFetchHeaderEntries()
-                        sb.appendLine("          let __req: RequestInit = { method: '${endpoint.httpMethod.name}', headers: { $headerEntries }, body: formData };")
+                        sb.appendLine("          let __req: RequestInit = { method: '${endpoint.httpMethod.name}', headers: { $headerEntries }, body: formData, signal: __signal };")
                     } else {
-                        sb.appendLine("          let __req: RequestInit = { method: '${endpoint.httpMethod.name}', body: formData };")
+                        sb.appendLine("          let __req: RequestInit = { method: '${endpoint.httpMethod.name}', body: formData, signal: __signal };")
                     }
                 } else {
                     when (endpoint.httpMethod) {
                         HttpMethod.GET, HttpMethod.DELETE -> {
                             if (hasFetchHeaders) {
                                 val headerEntries = buildFetchHeaderEntries()
-                                sb.appendLine("          let __req: RequestInit = { method: '${endpoint.httpMethod.name}', headers: { $headerEntries } };")
+                                sb.appendLine("          let __req: RequestInit = { method: '${endpoint.httpMethod.name}', headers: { $headerEntries }, signal: __signal };")
                             } else {
-                                sb.appendLine("          let __req: RequestInit = { method: '${endpoint.httpMethod.name}' };")
+                                sb.appendLine("          let __req: RequestInit = { method: '${endpoint.httpMethod.name}', signal: __signal };")
                             }
                         }
                         HttpMethod.POST, HttpMethod.PUT, HttpMethod.PATCH -> {
                             val bodyArg = bodyParam?.name ?: "undefined"
                             if (hasFetchHeaders) {
                                 val headerEntries = buildFetchHeaderEntries()
-                                sb.appendLine("          let __req: RequestInit = { method: '${endpoint.httpMethod.name}', headers: { 'Content-Type': 'application/json', $headerEntries }, body: JSON.stringify($bodyArg) };")
+                                sb.appendLine("          let __req: RequestInit = { method: '${endpoint.httpMethod.name}', headers: { 'Content-Type': 'application/json', $headerEntries }, body: JSON.stringify($bodyArg), signal: __signal };")
                             } else {
-                                sb.appendLine("          let __req: RequestInit = { method: '${endpoint.httpMethod.name}', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify($bodyArg) };")
+                                sb.appendLine("          let __req: RequestInit = { method: '${endpoint.httpMethod.name}', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify($bodyArg), signal: __signal };")
                             }
                         }
                     }
@@ -535,17 +551,25 @@ class TypeScriptGenerator(private val config: SdkConfig, private val logger: KSP
                 sb.appendLine("            const res = await fetch($fetchUrl, __req);")
                 sb.appendLine("            if (!res.ok) throw new ApiError(res.status, await res.json(), `SPIA ${endpoint.httpMethod.name} \${res.url} failed: \${res.status} \${res.statusText}`);")
                 if (promiseType != "void") {
+                    sb.appendLine("            clearTimeout(__timeoutId);")
                     sb.appendLine("            return res.json();")
                 } else {
+                    sb.appendLine("            clearTimeout(__timeoutId);")
                     sb.appendLine("            return;")
                 }
                 sb.appendLine("          } catch (error) {")
+                // Abort errors from timeout should be re-thrown as ApiTimeoutError
+                sb.appendLine("            if (error instanceof Error && error.name === 'AbortError') {")
+                sb.appendLine("              clearTimeout(__timeoutId);")
+                sb.appendLine("              throw new ApiTimeoutError();")
+                sb.appendLine("            }")
                 // P-04: catch ApiError specifically (not base Error), use error.status to decide retry
                 // 503 → retry (status >= 500 by default), 400 → no retry (status < 500)
                 sb.appendLine("            if (error instanceof ApiError && __retryOn(error.status) && __attempt < __maxAttempts) {")
                 sb.appendLine("              __attempt++;")
                 sb.appendLine("              await new Promise(r => setTimeout(r, __backoffMs));")
                 sb.appendLine("            } else {")
+                sb.appendLine("              clearTimeout(__timeoutId);")
                 sb.appendLine("              throw error;")
                 sb.appendLine("            }")
                 sb.appendLine("          }")
@@ -587,6 +611,7 @@ class TypeScriptGenerator(private val config: SdkConfig, private val logger: KSP
         queryParams: List<ParameterInfo>,
         headerParams: List<ParameterInfo>,
         cookieParams: List<ParameterInfo> = emptyList(),
+        withSignal: Boolean = false,
     ): String {
         // axios serializes the params object itself — no manual encoding needed here.
         // Optional params are spread conditionally so an explicit `undefined` is dropped
@@ -609,6 +634,11 @@ class TypeScriptGenerator(private val config: SdkConfig, private val logger: KSP
         }
         if (allHeaderEntries.isNotEmpty()) {
             parts.add("headers: { ${allHeaderEntries.joinToString(", ")} }")
+        }
+        if (withSignal) {
+            // Pass per-call signal: signal and config.timeout (via axios instance config or options.timeoutMs).
+            parts.add("signal: signal")
+            parts.add("timeout: undefined") // caller may override via axios instance defaults
         }
         if (parts.isEmpty()) return ""
         return ", { ${parts.joinToString(", ")} }"

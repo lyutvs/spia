@@ -1395,6 +1395,67 @@ class ProcessorSmokeTest {
     }
 
     @Test
+    fun `EC-10 timeout AbortSignal - generated fetch code uses AbortSignal any and signal parameter`(@TempDir tempDir: File) {
+        val outputPath = File(tempDir, "generated/api-sdk.ts").absolutePath
+
+        val source = SourceFile.kotlin(
+            "TimeoutController.kt",
+            """
+            package test
+
+            import org.springframework.web.bind.annotation.RestController
+            import org.springframework.web.bind.annotation.GetMapping
+            import org.springframework.web.bind.annotation.RequestMapping
+
+            data class SlowResponse(val message: String)
+
+            @RestController
+            @RequestMapping("/api/timeout")
+            class TimeoutController {
+                @GetMapping("/slow")
+                fun slow(): SlowResponse = SlowResponse("done")
+            }
+            """.trimIndent()
+        )
+
+        val compilation = KotlinCompilation().apply {
+            sources = listOf(source, coreSpringStubs())
+            inheritClassPath = true
+            messageOutputStream = System.out
+            configureKsp {
+                symbolProcessorProviders.add(SpiaProcessorProvider())
+                processorOptions["spia.outputPath"] = outputPath
+                processorOptions["spia.apiClient"] = "fetch"
+                incremental = false
+            }
+        }
+
+        val result = compilation.compile()
+        assertEquals(KotlinCompilation.ExitCode.OK, result.exitCode, "compilation should succeed")
+
+        assertTrue(File(outputPath).exists(), "SDK file not generated")
+        val sdk = File(outputPath).readText()
+
+        // AbortSignal.any must appear in the generated fetch code
+        assertTrue(sdk.contains("AbortSignal.any"), "AbortSignal.any missing — timeout+signal combining required")
+
+        // Every endpoint must have signal?: AbortSignal as last parameter
+        assertTrue(
+            sdk.contains("signal?: AbortSignal"),
+            "signal?: AbortSignal parameter missing from endpoint signature"
+        )
+
+        // ApiTimeoutError must be defined
+        assertTrue(sdk.contains("ApiTimeoutError"), "ApiTimeoutError class missing from generated SDK")
+
+        // timeoutMs must appear in ClientOptions
+        assertTrue(sdk.contains("timeoutMs"), "timeoutMs missing from ClientOptions")
+
+        // AbortController must be used
+        assertTrue(sdk.contains("AbortController"), "AbortController missing from fetch body")
+    }
+
+    @Test
     fun `EC-11 Kotlin value class emitted as branded TS type with constructor helper`(@TempDir tempDir: File) {
         val outputPath = File(tempDir, "generated/api-sdk.ts").absolutePath
 
