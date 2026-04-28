@@ -559,6 +559,12 @@ class TypeScriptGenerator(private val config: SdkConfig, private val logger: KSP
                     val marker = if (!param.required) "?" else ""
                     parts.add("${param.name}$marker: ${renderType(param.type)}")
                 }
+                ParameterKind.PAGEABLE -> {
+                    // Expand Pageable into three optional inline query fields
+                    parts.add("page?: number")
+                    parts.add("size?: number")
+                    parts.add("sort?: string")
+                }
                 ParameterKind.QUERY -> {
                     val marker = if (!param.required) "?" else ""
                     parts.add("${param.name}$marker: ${renderType(param.type)}")
@@ -605,10 +611,18 @@ class TypeScriptGenerator(private val config: SdkConfig, private val logger: KSP
         val cookieParams = endpoint.parameters.filter { it.kind == ParameterKind.COOKIE }
         val modelAttributeParams = endpoint.parameters.filter { it.kind == ParameterKind.MODEL_ATTRIBUTE }
         val matrixVariableParams = endpoint.parameters.filter { it.kind == ParameterKind.MATRIX_VARIABLE }
+        val pageableParams = endpoint.parameters.filter { it.kind == ParameterKind.PAGEABLE }
 
-        // MODEL_ATTRIBUTE and MATRIX_VARIABLE params are expanded into query string fields
+        // MODEL_ATTRIBUTE, MATRIX_VARIABLE, and PAGEABLE params are expanded into query string fields
         val expandedQueryParams: List<ParameterInfo> = queryParams +
             matrixVariableParams +
+            pageableParams.flatMap {
+                listOf(
+                    ParameterInfo(name = "page", type = TypeInfo.Primitive("number"), kind = ParameterKind.QUERY, required = false),
+                    ParameterInfo(name = "size", type = TypeInfo.Primitive("number"), kind = ParameterKind.QUERY, required = false),
+                    ParameterInfo(name = "sort", type = TypeInfo.Primitive("string"), kind = ParameterKind.QUERY, required = false),
+                )
+            } +
             modelAttributeParams.flatMap { p ->
                 val fields = resolveDtoFields(p.type)
                 if (fields.isNotEmpty()) {

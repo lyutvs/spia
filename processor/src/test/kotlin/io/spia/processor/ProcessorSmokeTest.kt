@@ -14,6 +14,7 @@ import io.spia.processor.test_support.httpStatusStubs
 import io.spia.processor.test_support.jacksonStubs
 import io.spia.processor.test_support.javaController
 import io.spia.processor.test_support.javaDto
+import io.spia.processor.test_support.pageableStubs
 import io.spia.processor.test_support.parameterStubs
 import io.spia.processor.test_support.reactorStubs
 import io.spia.processor.test_support.resourceStubs
@@ -1610,6 +1611,70 @@ class ProcessorSmokeTest {
         // UserDto interface must reference UserId as branded type (not raw string)
         assertTrue(sdk.contains("interface UserDto"), "UserDto interface missing")
         assertTrue(sdk.contains("id: UserId"), "UserDto.id should reference UserId branded type")
+    }
+
+    @Test
+    fun `EC-06 Pageable param expands to inline page size sort query fields`(@TempDir tempDir: File) {
+        val outputPath = File(tempDir, "generated/api-sdk.ts").absolutePath
+
+        val source = SourceFile.kotlin(
+            "EcPageableController.kt",
+            """
+            package test
+
+            import org.springframework.web.bind.annotation.RestController
+            import org.springframework.web.bind.annotation.GetMapping
+            import org.springframework.web.bind.annotation.RequestMapping
+            import org.springframework.data.domain.Pageable
+            import org.springframework.data.domain.Page
+
+            data class ItemDto(val id: Long, val name: String)
+
+            @RestController
+            @RequestMapping("/api/ec/pageable")
+            class EcPageableController {
+                @GetMapping
+                fun list(pageable: Pageable): Page<ItemDto> = TODO()
+            }
+            """.trimIndent()
+        )
+
+        val compilation = KotlinCompilation().apply {
+            sources = listOf(source, coreSpringStubs(), pageableStubs())
+            inheritClassPath = true
+            messageOutputStream = System.out
+            configureKsp {
+                symbolProcessorProviders.add(SpiaProcessorProvider())
+                processorOptions["spia.outputPath"] = outputPath
+                processorOptions["spia.apiClient"] = "fetch"
+                incremental = false
+            }
+        }
+
+        val result = compilation.compile()
+        assertEquals(KotlinCompilation.ExitCode.OK, result.exitCode, "EC-06: compilation should succeed")
+
+        assertTrue(File(outputPath).exists(), "SDK file not generated")
+        val sdk = File(outputPath).readText()
+
+        // Pageable must expand into the three optional query fields
+        assertTrue(sdk.contains("page?: number"), "page?: number param missing from Pageable endpoint")
+        assertTrue(sdk.contains("size?: number"), "size?: number param missing from Pageable endpoint")
+        assertTrue(sdk.contains("sort?: string"), "sort?: string param missing from Pageable endpoint")
+
+        // The serialization must include page, size, sort in the query string builder
+        assertTrue(
+            sdk.contains("page") && (sdk.contains("params.append") || sdk.contains("encodeURIComponent")),
+            "page query serialization missing from Pageable endpoint"
+        )
+        assertTrue(
+            sdk.contains("size") && (sdk.contains("params.append") || sdk.contains("encodeURIComponent")),
+            "size query serialization missing from Pageable endpoint"
+        )
+        assertTrue(
+            sdk.contains("sort") && (sdk.contains("params.append") || sdk.contains("encodeURIComponent")),
+            "sort query serialization missing from Pageable endpoint"
+        )
     }
 
     @Test

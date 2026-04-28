@@ -139,7 +139,7 @@ after v0.2.0.
 |---|---|
 | Bean Validation (`@Valid`, `@NotNull`, `@Size`, …) | Use TypeScript-side validation; Spring validates at runtime |
 | Spring Security (`@PreAuthorize`, auth headers) | Handle auth in the axios instance passed to `createApi` |
-| `Pageable` / `Page` (Spring Data) as a first-class type | Define a plain DTO (see the `Page<T>` example below) |
+| `Pageable` / `Page` (Spring Data) | Now supported — `Pageable` parameters expand to `page?: number; size?: number; sort?: string` inline query fields |
 | `@JsonProperty` / `@JsonAlias` name overrides | Use matching Kotlin property names |
 | `ProblemDetail` / RFC 9457 error bodies | Wrap in your own DTO |
 

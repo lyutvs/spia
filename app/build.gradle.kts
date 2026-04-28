@@ -22,6 +22,7 @@ dependencies {
     // Dependency stubs reserved for upcoming tasks — uncomment when the task lands:
     implementation("org.springframework.boot:spring-boot-starter-validation")
     compileOnly("org.springframework.boot:spring-boot-starter-webflux")       // task 17 (Streaming/SSE)
+    compileOnly("org.springframework.data:spring-data-commons")               // task 06 (Pageable support)
     // implementation("com.fasterxml.jackson.module:jackson-module-kotlin")      // task 13 (Jackson customization)
 }
 

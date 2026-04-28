@@ -35,6 +35,8 @@ object SpringAnnotations {
     const val RESOURCE = "org.springframework.core.io.Resource"
     const val FLUX = "reactor.core.publisher.Flux"
 
+    const val PAGEABLE = "org.springframework.data.domain.Pageable"
+
     val HTTP_METHOD_ANNOTATIONS = mapOf(
         GET_MAPPING to "GET",
         POST_MAPPING to "POST",

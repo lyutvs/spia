@@ -164,6 +164,19 @@ class ControllerAnalyzer(private val typeResolver: TypeResolver, private val log
         val paramName = param.name?.asString() ?: return null
         val paramType = param.type.resolve().let { typeResolver.resolve(it) }
 
+        // Pageable is bound automatically by Spring MVC — no annotation needed.
+        // Detect it by FQN before the annotation loop so it is never silently dropped.
+        val paramTypeFqn = (param.type.resolve().declaration as? com.google.devtools.ksp.symbol.KSClassDeclaration)
+            ?.qualifiedName?.asString()
+        if (paramTypeFqn == SpringAnnotations.PAGEABLE) {
+            return ParameterInfo(
+                name = paramName,
+                type = TypeInfo.Primitive("object"),
+                kind = ParameterKind.PAGEABLE,
+                required = false,
+            )
+        }
+
         for (annotation in param.annotations) {
             val fqn = annotation.annotationType.resolve().declaration.qualifiedName?.asString() ?: continue
             val kind = when (fqn) {

@@ -139,3 +139,27 @@ fun responseEntityStubs(): SourceFile = SourceFile.kotlin(
     class ResponseEntity<T>
     """.trimIndent()
 )
+
+/** Stubs for {@code org.springframework.data.domain.Pageable} and {@code Page<T>} used by Pageable tests. */
+fun pageableStubs(): SourceFile = SourceFile.kotlin(
+    "PageableStubs.kt",
+    """
+    package org.springframework.data.domain
+
+    interface Pageable {
+        fun getPageNumber(): Int
+        fun getPageSize(): Int
+        fun getSort(): Sort
+    }
+
+    interface Sort
+
+    interface Page<T> {
+        fun getContent(): List<T>
+        fun getTotalElements(): Long
+        fun getTotalPages(): Int
+        fun getNumber(): Int
+        fun getSize(): Int
+    }
+    """.trimIndent()
+)
