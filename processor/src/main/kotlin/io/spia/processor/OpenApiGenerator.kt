@@ -9,7 +9,7 @@ import io.spia.processor.model.*
 object OpenApiGenerator {
 
     fun generate(
-        controllers: List<ControllerInfo>,
+        controllers: List<ControllerInfo> = emptyList(),
         dtos: List<TypeInfo.Dto> = emptyList(),
         enums: List<TypeInfo.Enum> = emptyList(),
         generics: List<TypeInfo.Generic> = emptyList(),
