@@ -8,11 +8,16 @@ import org.springframework.web.bind.annotation.RestController
 import org.springframework.web.server.ResponseStatusException
 import java.util.concurrent.atomic.AtomicInteger
 
-data class EcAuthRetryResponse(val message: String, val token: String)
+data class EcAuthRetryResponse(val message: String, val authenticated: Boolean)
 
 /**
  * EC-09 demo controller: requires Authorization header, occasionally returns 503 SERVICE_UNAVAILABLE
  * to exercise the client-side retry logic in the generated SDK.
+ *
+ * Note: this is a demo. The Authorization header is checked for presence but is NOT validated.
+ * The header value is intentionally NOT echoed in the response body — reflecting credentials in
+ * responses is a credential-leakage anti-pattern (OWASP A02) and must not be copied into
+ * production code.
  */
 @RestController
 @RequestMapping("/api/ec-auth-retry")
@@ -30,11 +35,11 @@ class EcAuthRetryController {
     ): EcAuthRetryResponse {
         val count = callCounter.incrementAndGet()
         if (count % 2 != 0) {
-            throw ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, "EC-09: transient 503 — retry me")
+            throw ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, "transient 503")
         }
         return EcAuthRetryResponse(
             message = "EC-09: authorized access granted",
-            token = authorization,
+            authenticated = authorization.isNotBlank(),
         )
     }
 
@@ -45,7 +50,7 @@ class EcAuthRetryController {
     ): EcAuthRetryResponse {
         return EcAuthRetryResponse(
             message = "EC-09: ok",
-            token = authorization,
+            authenticated = authorization.isNotBlank(),
         )
     }
 }

@@ -27,10 +27,14 @@ class EcStreamingController {
 
     @GetMapping("/file/{name}")
     fun download(@PathVariable name: String): ResponseEntity<Resource> {
-        val data = "hello from $name".toByteArray()
+        // Sanitize: keep only alphanumerics, dot, dash, underscore — strip CR/LF/quote/semicolon
+        // so the path variable cannot escape the filename parameter and inject HTTP headers.
+        val safeName = name.filter { it.isLetterOrDigit() || it == '.' || it == '-' || it == '_' }
+            .ifBlank { "download" }
+        val data = "hello from $safeName".toByteArray()
         val resource: Resource = ByteArrayResource(data)
         return ResponseEntity.ok()
-            .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"$name\"")
+            .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"$safeName\"")
             .contentType(MediaType.APPLICATION_OCTET_STREAM)
             .body(resource)
     }
