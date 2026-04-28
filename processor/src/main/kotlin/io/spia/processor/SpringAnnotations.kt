@@ -27,6 +27,10 @@ object SpringAnnotations {
     const val NOT_BLANK = "jakarta.validation.constraints.NotBlank"
     const val EMAIL = "jakarta.validation.constraints.Email"
 
+    const val SERVER_SENT_EVENT = "org.springframework.http.codec.ServerSentEvent"
+    const val RESOURCE = "org.springframework.core.io.Resource"
+    const val FLUX = "reactor.core.publisher.Flux"
+
     val HTTP_METHOD_ANNOTATIONS = mapOf(
         GET_MAPPING to "GET",
         POST_MAPPING to "POST",

@@ -8,7 +8,7 @@ import {
   type UserProfileDto,
 } from './generated/api-sdk';
 
-const api = createApi('http://localhost:8080');
+const api = createApi({ baseUrl: 'http://localhost:8080' });
 
 export async function demo(): Promise<void> {
   // GET — path variable + nested DTO

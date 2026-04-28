@@ -19,4 +19,9 @@
 - Java `@RestController` classes are now processed (minimum support). Plain Java POJO fields are discovered via JavaBeans getter methods (`getXxx()` → `xxx`).
 - **Known issue (P-13):** Lombok-generated getters are invisible to KSP at compile time. Lombok POJOs are emitted as empty TypeScript interfaces. Use plain Java POJOs with explicit getters, or Kotlin data classes.
 
+## Streaming and file download support
+
+- SSE endpoints (`Flux<ServerSentEvent<T>>`) now emit as `AsyncIterable<T>` in the generated TypeScript SDK.
+- `ResponseEntity<Resource>` (file download endpoints) now emits as `Promise<Blob>`.
+
 ## Breaking changes

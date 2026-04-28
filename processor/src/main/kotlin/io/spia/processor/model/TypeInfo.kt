@@ -10,6 +10,9 @@ sealed class TypeInfo {
     data class Dto(val name: String, val fields: List<FieldInfo>, override val nullable: Boolean = false) : TypeInfo()
     data class Unknown(val rawName: String, override val nullable: Boolean = false) : TypeInfo()
 
+    /** Server-Sent Events stream — rendered as `AsyncIterable<T>` in TS. */
+    data class StreamType(val item: TypeInfo, override val nullable: Boolean = false) : TypeInfo()
+
     /**
      * A parameterized DTO (e.g., `class Page<T>(val content: List<T>, ...)`). The
      * interface definition uses [typeParameters] as placeholder names; [fields] may
@@ -53,6 +56,7 @@ sealed class TypeInfo {
         is Generic -> copy(nullable = nullable)
         is TypeParameter -> copy(nullable = nullable)
         is SealedUnion -> copy(nullable = nullable)
+        is StreamType -> copy(nullable = nullable)
     }
 }
 

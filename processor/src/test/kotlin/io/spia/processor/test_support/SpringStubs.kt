@@ -89,3 +89,39 @@ fun parameterStubs(): SourceFile = SourceFile.kotlin(
     }
     """.trimIndent()
 )
+
+/** Stub for {@code reactor.core.publisher.Flux} used by SSE/streaming tests. */
+fun reactorStubs(): SourceFile = SourceFile.kotlin(
+    "ReactorStubs.kt",
+    """
+    package reactor.core.publisher
+    class Flux<T>
+    """.trimIndent()
+)
+
+/** Stub for {@code org.springframework.http.codec.ServerSentEvent} used by SSE tests. */
+fun sseStubs(): SourceFile = SourceFile.kotlin(
+    "SseStubs.kt",
+    """
+    package org.springframework.http.codec
+    class ServerSentEvent<T>
+    """.trimIndent()
+)
+
+/** Stub for {@code org.springframework.core.io.Resource} used by file download tests. */
+fun resourceStubs(): SourceFile = SourceFile.kotlin(
+    "ResourceStubs.kt",
+    """
+    package org.springframework.core.io
+    interface Resource
+    """.trimIndent()
+)
+
+/** Stub for {@code org.springframework.http.ResponseEntity} used by file download tests. */
+fun responseEntityStubs(): SourceFile = SourceFile.kotlin(
+    "ResponseEntityStubs.kt",
+    """
+    package org.springframework.http
+    class ResponseEntity<T>
+    """.trimIndent()
+)

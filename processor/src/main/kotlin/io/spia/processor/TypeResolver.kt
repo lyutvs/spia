@@ -188,6 +188,31 @@ class TypeResolver(private val config: SdkConfig) {
                 if (inner != null) resolve(inner) else TypeInfo.Primitive("any")
             }
 
+            // produces text/event-stream — Flux<ServerSentEvent<T>> → AsyncIterable<T>
+            SpringAnnotations.FLUX -> {
+                val inner = ksType.arguments.firstOrNull()?.type?.resolve()
+                if (inner != null) {
+                    val innerFqn = inner.declaration.qualifiedName?.asString()
+                    if (innerFqn == SpringAnnotations.SERVER_SENT_EVENT) {
+                        val item = inner.arguments.firstOrNull()?.type?.resolve()
+                        if (item != null) TypeInfo.StreamType(resolve(item))
+                        else TypeInfo.StreamType(TypeInfo.Primitive("any"))
+                    } else {
+                        TypeInfo.StreamType(resolve(inner))
+                    }
+                } else {
+                    TypeInfo.StreamType(TypeInfo.Primitive("any"))
+                }
+            }
+
+            SpringAnnotations.SERVER_SENT_EVENT -> {
+                val item = ksType.arguments.firstOrNull()?.type?.resolve()
+                if (item != null) TypeInfo.StreamType(resolve(item))
+                else TypeInfo.StreamType(TypeInfo.Primitive("any"))
+            }
+
+            SpringAnnotations.RESOURCE -> TypeInfo.Primitive("Blob")
+
             else -> resolveCustomType(ksType)
         }
     }
@@ -438,7 +463,10 @@ class TypeResolver(private val config: SdkConfig) {
         "kotlin.collections.Map", "kotlin.collections.MutableMap",
         "java.util.Map", "java.util.HashMap",
         "org.springframework.http.ResponseEntity",
-        SpringAnnotations.MULTIPART_FILE -> true
+        SpringAnnotations.MULTIPART_FILE,
+        SpringAnnotations.FLUX,
+        SpringAnnotations.SERVER_SENT_EVENT,
+        SpringAnnotations.RESOURCE -> true
         else -> false
     }
 }

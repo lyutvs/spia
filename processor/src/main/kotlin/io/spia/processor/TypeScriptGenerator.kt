@@ -186,6 +186,7 @@ class TypeScriptGenerator(private val config: SdkConfig) {
         }
         is TypeInfo.TypeParameter -> type.name
         is TypeInfo.SealedUnion -> type.name
+        is TypeInfo.StreamType -> "AsyncIterable<${renderType(type.item)}>"
     }
 
     private fun renderGenericInterface(generic: TypeInfo.Generic): String {

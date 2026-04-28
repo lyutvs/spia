@@ -82,6 +82,11 @@ export interface NotFoundErrorDto {
   resource: string | null;
 }
 
+export interface Tick {
+  seq: number;
+  timestamp: number;
+}
+
 export interface UpdateUserRequest {
   email: string | null;
   bio: string | null;
@@ -133,8 +138,9 @@ export type GetSquareError = ApiError<BadRequestErrorDto | NotFoundErrorDto | In
 export type GetTriangleError = ApiError<BadRequestErrorDto | NotFoundErrorDto | InternalErrorDto>;
 export type SubmitError = ApiError<BadRequestErrorDto | NotFoundErrorDto | InternalErrorDto>;
 export type WrappedError = ApiError<BadRequestErrorDto | NotFoundErrorDto | InternalErrorDto>;
+export type TicksError = ApiError<BadRequestErrorDto | NotFoundErrorDto | InternalErrorDto>;
+export type DownloadError = ApiError<BadRequestErrorDto | NotFoundErrorDto | InternalErrorDto>;
 export type GetUserProfileError = ApiError<BadRequestErrorDto | NotFoundErrorDto | InternalErrorDto>;
-export type CreateUserError = ApiError<BadRequestErrorDto | NotFoundErrorDto | InternalErrorDto>;
 export type UpdateUserError = ApiError<BadRequestErrorDto | NotFoundErrorDto | InternalErrorDto>;
 export type DeleteUserError = ApiError<BadRequestErrorDto | NotFoundErrorDto | InternalErrorDto>;
 export type ListUsersError = ApiError<BadRequestErrorDto | NotFoundErrorDto | InternalErrorDto>;
@@ -208,6 +214,20 @@ export function createApi(options?: ClientOptions) {
         const res = await fetch(`${_baseUrl}/ec-validation/wrapped`, { method: 'GET' });
         if (!res.ok) throw new ApiError(res.status, await res.json(), `SPIA GET ${res.url} failed: ${res.status} ${res.statusText}`);
         return res.json();
+      },
+
+    },
+    ecStreaming: {
+      ticks: async (): Promise<AsyncIterable<Tick>> => {
+        const res = await fetch(`${_baseUrl}/api/ec-streaming/ticks`, { method: 'GET' });
+        if (!res.ok) throw new ApiError(res.status, await res.json(), `SPIA GET ${res.url} failed: ${res.status} ${res.statusText}`);
+        return res.json();
+      },
+
+      download: async (name: string): Promise<Blob> => {
+        const res = await fetch(`${_baseUrl}/api/ec-streaming/file/${encodeURIComponent(String(name))}`, { method: 'GET' });
+        if (!res.ok) throw new ApiError(res.status, await res.json(), `SPIA GET ${res.url} failed: ${res.status} ${res.statusText}`);
+        return res.blob();
       },
 
     },
