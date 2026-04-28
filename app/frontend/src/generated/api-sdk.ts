@@ -6,6 +6,10 @@ export class ApiError<T = unknown> extends Error {
   constructor(public status: number, public data: T, message?: string) { super(message); }
 }
 
+export class ApiTimeoutError extends Error {
+  constructor(message?: string) { super(message ?? 'Request timed out'); }
+}
+
 /* ──────────── DTO Types ──────────── */
 
 export type OrderId = number & { readonly __brand: 'OrderId' };
@@ -50,6 +54,11 @@ export interface EcAuthRetryResponse {
 export interface EcJavaDto {
   name: string;
   score: number;
+}
+
+export interface EcTimeoutResponse {
+  message: string;
+  delayMs: number;
 }
 
 export interface EcValidationRequest {
@@ -166,6 +175,8 @@ export type GetSquareError = ApiError<BadRequestErrorDto | NotFoundErrorDto | In
 export type GetTriangleError = ApiError<BadRequestErrorDto | NotFoundErrorDto | InternalErrorDto>;
 export type TicksError = ApiError<BadRequestErrorDto | NotFoundErrorDto | InternalErrorDto>;
 export type DownloadError = ApiError<BadRequestErrorDto | NotFoundErrorDto | InternalErrorDto>;
+export type SlowError = ApiError<BadRequestErrorDto | NotFoundErrorDto | InternalErrorDto>;
+export type FastError = ApiError<BadRequestErrorDto | NotFoundErrorDto | InternalErrorDto>;
 export type SubmitError = ApiError<BadRequestErrorDto | NotFoundErrorDto | InternalErrorDto>;
 export type WrappedError = ApiError<BadRequestErrorDto | NotFoundErrorDto | InternalErrorDto>;
 export type GetUserError = ApiError<BadRequestErrorDto | NotFoundErrorDto | InternalErrorDto>;
@@ -182,6 +193,7 @@ export type WrappedUserError = ApiError<BadRequestErrorDto | NotFoundErrorDto | 
 
 export interface ClientOptions {
   baseUrl?: string;
+  timeoutMs?: number;
   authInterceptor?: (request: RequestInit) => RequestInit | Promise<RequestInit>;
   retry?: { maxAttempts: number; backoffMs: number; retryOn?: (status: number) => boolean };
 }
@@ -194,24 +206,38 @@ export function createApi(options?: ClientOptions) {
        * Returns 200 on even calls, 503 SERVICE_UNAVAILABLE on odd calls,
  so callers can verify retry behaviour.
        */
-      protectedEndpoint: async (authorization: string): Promise<EcAuthRetryResponse> => {
+      protectedEndpoint: async (authorization: string, signal?: AbortSignal): Promise<EcAuthRetryResponse> => {
+        const __timeoutMs = options?.timeoutMs;
+        const __controller = new AbortController();
+        let __timeoutId: ReturnType<typeof setTimeout> | undefined;
+        if (__timeoutMs !== undefined) {
+          __timeoutId = setTimeout(() => __controller.abort(new ApiTimeoutError()), __timeoutMs);
+        }
+        const __signals = [__controller.signal, ...(signal ? [signal] : [])];
+        const __signal = __signals.length > 1 ? AbortSignal.any(__signals) : __controller.signal;
         const __maxAttempts = options?.retry?.maxAttempts ?? 0;
         const __backoffMs = options?.retry?.backoffMs ?? 200;
         const __retryOn = options?.retry?.retryOn ?? ((s: number) => s >= 500);
         let __attempt = 0;
         // eslint-disable-next-line no-constant-condition
         while (true) {
-          let __req: RequestInit = { method: 'GET', headers: { 'Authorization': authorization } };
+          let __req: RequestInit = { method: 'GET', headers: { 'Authorization': authorization }, signal: __signal };
           if (options?.authInterceptor) __req = await options.authInterceptor(__req);
           try {
             const res = await fetch(`${_baseUrl}/api/ec-auth-retry/protected`, __req);
             if (!res.ok) throw new ApiError(res.status, await res.json(), `SPIA GET ${res.url} failed: ${res.status} ${res.statusText}`);
+            clearTimeout(__timeoutId);
             return res.json();
           } catch (error) {
+            if (error instanceof Error && error.name === 'AbortError') {
+              clearTimeout(__timeoutId);
+              throw new ApiTimeoutError();
+            }
             if (error instanceof ApiError && __retryOn(error.status) && __attempt < __maxAttempts) {
               __attempt++;
               await new Promise(r => setTimeout(r, __backoffMs));
             } else {
+              clearTimeout(__timeoutId);
               throw error;
             }
           }
@@ -221,24 +247,38 @@ export function createApi(options?: ClientOptions) {
       /**
        * Always returns 200 — used to verify auth header is forwarded without retry.
        */
-      alwaysOk: async (authorization: string): Promise<EcAuthRetryResponse> => {
+      alwaysOk: async (authorization: string, signal?: AbortSignal): Promise<EcAuthRetryResponse> => {
+        const __timeoutMs = options?.timeoutMs;
+        const __controller = new AbortController();
+        let __timeoutId: ReturnType<typeof setTimeout> | undefined;
+        if (__timeoutMs !== undefined) {
+          __timeoutId = setTimeout(() => __controller.abort(new ApiTimeoutError()), __timeoutMs);
+        }
+        const __signals = [__controller.signal, ...(signal ? [signal] : [])];
+        const __signal = __signals.length > 1 ? AbortSignal.any(__signals) : __controller.signal;
         const __maxAttempts = options?.retry?.maxAttempts ?? 0;
         const __backoffMs = options?.retry?.backoffMs ?? 200;
         const __retryOn = options?.retry?.retryOn ?? ((s: number) => s >= 500);
         let __attempt = 0;
         // eslint-disable-next-line no-constant-condition
         while (true) {
-          let __req: RequestInit = { method: 'GET', headers: { 'Authorization': authorization } };
+          let __req: RequestInit = { method: 'GET', headers: { 'Authorization': authorization }, signal: __signal };
           if (options?.authInterceptor) __req = await options.authInterceptor(__req);
           try {
             const res = await fetch(`${_baseUrl}/api/ec-auth-retry/always-ok`, __req);
             if (!res.ok) throw new ApiError(res.status, await res.json(), `SPIA GET ${res.url} failed: ${res.status} ${res.statusText}`);
+            clearTimeout(__timeoutId);
             return res.json();
           } catch (error) {
+            if (error instanceof Error && error.name === 'AbortError') {
+              clearTimeout(__timeoutId);
+              throw new ApiTimeoutError();
+            }
             if (error instanceof ApiError && __retryOn(error.status) && __attempt < __maxAttempts) {
               __attempt++;
               await new Promise(r => setTimeout(r, __backoffMs));
             } else {
+              clearTimeout(__timeoutId);
               throw error;
             }
           }
@@ -247,48 +287,76 @@ export function createApi(options?: ClientOptions) {
 
     },
     ecJackson: {
-      createUser: async (request: JacksonUserRequest): Promise<JacksonUserResponse> => {
+      createUser: async (request: JacksonUserRequest, signal?: AbortSignal): Promise<JacksonUserResponse> => {
+        const __timeoutMs = options?.timeoutMs;
+        const __controller = new AbortController();
+        let __timeoutId: ReturnType<typeof setTimeout> | undefined;
+        if (__timeoutMs !== undefined) {
+          __timeoutId = setTimeout(() => __controller.abort(new ApiTimeoutError()), __timeoutMs);
+        }
+        const __signals = [__controller.signal, ...(signal ? [signal] : [])];
+        const __signal = __signals.length > 1 ? AbortSignal.any(__signals) : __controller.signal;
         const __maxAttempts = options?.retry?.maxAttempts ?? 0;
         const __backoffMs = options?.retry?.backoffMs ?? 200;
         const __retryOn = options?.retry?.retryOn ?? ((s: number) => s >= 500);
         let __attempt = 0;
         // eslint-disable-next-line no-constant-condition
         while (true) {
-          let __req: RequestInit = { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(request) };
+          let __req: RequestInit = { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(request), signal: __signal };
           if (options?.authInterceptor) __req = await options.authInterceptor(__req);
           try {
             const res = await fetch(`${_baseUrl}/api/ec-jackson/users`, __req);
             if (!res.ok) throw new ApiError(res.status, await res.json(), `SPIA POST ${res.url} failed: ${res.status} ${res.statusText}`);
+            clearTimeout(__timeoutId);
             return res.json();
           } catch (error) {
+            if (error instanceof Error && error.name === 'AbortError') {
+              clearTimeout(__timeoutId);
+              throw new ApiTimeoutError();
+            }
             if (error instanceof ApiError && __retryOn(error.status) && __attempt < __maxAttempts) {
               __attempt++;
               await new Promise(r => setTimeout(r, __backoffMs));
             } else {
+              clearTimeout(__timeoutId);
               throw error;
             }
           }
         }
       },
 
-      sampleUser: async (): Promise<JacksonUserResponse> => {
+      sampleUser: async (signal?: AbortSignal): Promise<JacksonUserResponse> => {
+        const __timeoutMs = options?.timeoutMs;
+        const __controller = new AbortController();
+        let __timeoutId: ReturnType<typeof setTimeout> | undefined;
+        if (__timeoutMs !== undefined) {
+          __timeoutId = setTimeout(() => __controller.abort(new ApiTimeoutError()), __timeoutMs);
+        }
+        const __signals = [__controller.signal, ...(signal ? [signal] : [])];
+        const __signal = __signals.length > 1 ? AbortSignal.any(__signals) : __controller.signal;
         const __maxAttempts = options?.retry?.maxAttempts ?? 0;
         const __backoffMs = options?.retry?.backoffMs ?? 200;
         const __retryOn = options?.retry?.retryOn ?? ((s: number) => s >= 500);
         let __attempt = 0;
         // eslint-disable-next-line no-constant-condition
         while (true) {
-          let __req: RequestInit = { method: 'GET' };
+          let __req: RequestInit = { method: 'GET', signal: __signal };
           if (options?.authInterceptor) __req = await options.authInterceptor(__req);
           try {
             const res = await fetch(`${_baseUrl}/api/ec-jackson/users/sample`, __req);
             if (!res.ok) throw new ApiError(res.status, await res.json(), `SPIA GET ${res.url} failed: ${res.status} ${res.statusText}`);
+            clearTimeout(__timeoutId);
             return res.json();
           } catch (error) {
+            if (error instanceof Error && error.name === 'AbortError') {
+              clearTimeout(__timeoutId);
+              throw new ApiTimeoutError();
+            }
             if (error instanceof ApiError && __retryOn(error.status) && __attempt < __maxAttempts) {
               __attempt++;
               await new Promise(r => setTimeout(r, __backoffMs));
             } else {
+              clearTimeout(__timeoutId);
               throw error;
             }
           }
@@ -297,48 +365,76 @@ export function createApi(options?: ClientOptions) {
 
     },
     ecJava: {
-      get: async (name: string): Promise<EcJavaDto> => {
+      get: async (name: string, signal?: AbortSignal): Promise<EcJavaDto> => {
+        const __timeoutMs = options?.timeoutMs;
+        const __controller = new AbortController();
+        let __timeoutId: ReturnType<typeof setTimeout> | undefined;
+        if (__timeoutMs !== undefined) {
+          __timeoutId = setTimeout(() => __controller.abort(new ApiTimeoutError()), __timeoutMs);
+        }
+        const __signals = [__controller.signal, ...(signal ? [signal] : [])];
+        const __signal = __signals.length > 1 ? AbortSignal.any(__signals) : __controller.signal;
         const __maxAttempts = options?.retry?.maxAttempts ?? 0;
         const __backoffMs = options?.retry?.backoffMs ?? 200;
         const __retryOn = options?.retry?.retryOn ?? ((s: number) => s >= 500);
         let __attempt = 0;
         // eslint-disable-next-line no-constant-condition
         while (true) {
-          let __req: RequestInit = { method: 'GET' };
+          let __req: RequestInit = { method: 'GET', signal: __signal };
           if (options?.authInterceptor) __req = await options.authInterceptor(__req);
           try {
             const res = await fetch(`${_baseUrl}/api/ec-java/${encodeURIComponent(String(name))}`, __req);
             if (!res.ok) throw new ApiError(res.status, await res.json(), `SPIA GET ${res.url} failed: ${res.status} ${res.statusText}`);
+            clearTimeout(__timeoutId);
             return res.json();
           } catch (error) {
+            if (error instanceof Error && error.name === 'AbortError') {
+              clearTimeout(__timeoutId);
+              throw new ApiTimeoutError();
+            }
             if (error instanceof ApiError && __retryOn(error.status) && __attempt < __maxAttempts) {
               __attempt++;
               await new Promise(r => setTimeout(r, __backoffMs));
             } else {
+              clearTimeout(__timeoutId);
               throw error;
             }
           }
         }
       },
 
-      create: async (dto: EcJavaDto): Promise<EcJavaDto> => {
+      create: async (dto: EcJavaDto, signal?: AbortSignal): Promise<EcJavaDto> => {
+        const __timeoutMs = options?.timeoutMs;
+        const __controller = new AbortController();
+        let __timeoutId: ReturnType<typeof setTimeout> | undefined;
+        if (__timeoutMs !== undefined) {
+          __timeoutId = setTimeout(() => __controller.abort(new ApiTimeoutError()), __timeoutMs);
+        }
+        const __signals = [__controller.signal, ...(signal ? [signal] : [])];
+        const __signal = __signals.length > 1 ? AbortSignal.any(__signals) : __controller.signal;
         const __maxAttempts = options?.retry?.maxAttempts ?? 0;
         const __backoffMs = options?.retry?.backoffMs ?? 200;
         const __retryOn = options?.retry?.retryOn ?? ((s: number) => s >= 500);
         let __attempt = 0;
         // eslint-disable-next-line no-constant-condition
         while (true) {
-          let __req: RequestInit = { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(dto) };
+          let __req: RequestInit = { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(dto), signal: __signal };
           if (options?.authInterceptor) __req = await options.authInterceptor(__req);
           try {
             const res = await fetch(`${_baseUrl}/api/ec-java`, __req);
             if (!res.ok) throw new ApiError(res.status, await res.json(), `SPIA POST ${res.url} failed: ${res.status} ${res.statusText}`);
+            clearTimeout(__timeoutId);
             return res.json();
           } catch (error) {
+            if (error instanceof Error && error.name === 'AbortError') {
+              clearTimeout(__timeoutId);
+              throw new ApiTimeoutError();
+            }
             if (error instanceof ApiError && __retryOn(error.status) && __attempt < __maxAttempts) {
               __attempt++;
               await new Promise(r => setTimeout(r, __backoffMs));
             } else {
+              clearTimeout(__timeoutId);
               throw error;
             }
           }
@@ -350,24 +446,38 @@ export function createApi(options?: ClientOptions) {
       /**
        * Endpoint using @ModelAttribute — DTO fields flattened into query string.
        */
-      search: async (keyword: string, page: number, size: number): Promise<string[]> => {
+      search: async (keyword: string, page: number, size: number, signal?: AbortSignal): Promise<string[]> => {
+        const __timeoutMs = options?.timeoutMs;
+        const __controller = new AbortController();
+        let __timeoutId: ReturnType<typeof setTimeout> | undefined;
+        if (__timeoutMs !== undefined) {
+          __timeoutId = setTimeout(() => __controller.abort(new ApiTimeoutError()), __timeoutMs);
+        }
+        const __signals = [__controller.signal, ...(signal ? [signal] : [])];
+        const __signal = __signals.length > 1 ? AbortSignal.any(__signals) : __controller.signal;
         const __maxAttempts = options?.retry?.maxAttempts ?? 0;
         const __backoffMs = options?.retry?.backoffMs ?? 200;
         const __retryOn = options?.retry?.retryOn ?? ((s: number) => s >= 500);
         let __attempt = 0;
         // eslint-disable-next-line no-constant-condition
         while (true) {
-          let __req: RequestInit = { method: 'GET' };
+          let __req: RequestInit = { method: 'GET', signal: __signal };
           if (options?.authInterceptor) __req = await options.authInterceptor(__req);
           try {
             const res = await fetch(`${_baseUrl}/api/ec-param-kinds2/search?keyword=${encodeURIComponent(String(keyword))}&page=${encodeURIComponent(String(page))}&size=${encodeURIComponent(String(size))}`, __req);
             if (!res.ok) throw new ApiError(res.status, await res.json(), `SPIA GET ${res.url} failed: ${res.status} ${res.statusText}`);
+            clearTimeout(__timeoutId);
             return res.json();
           } catch (error) {
+            if (error instanceof Error && error.name === 'AbortError') {
+              clearTimeout(__timeoutId);
+              throw new ApiTimeoutError();
+            }
             if (error instanceof ApiError && __retryOn(error.status) && __attempt < __maxAttempts) {
               __attempt++;
               await new Promise(r => setTimeout(r, __backoffMs));
             } else {
+              clearTimeout(__timeoutId);
               throw error;
             }
           }
@@ -377,24 +487,38 @@ export function createApi(options?: ClientOptions) {
       /**
        * Endpoint using @CookieValue — cookie value injected from request cookies.
        */
-      whoami: async (cookies?: Record<string, string>): Promise<string> => {
+      whoami: async (cookies?: Record<string, string>, signal?: AbortSignal): Promise<string> => {
+        const __timeoutMs = options?.timeoutMs;
+        const __controller = new AbortController();
+        let __timeoutId: ReturnType<typeof setTimeout> | undefined;
+        if (__timeoutMs !== undefined) {
+          __timeoutId = setTimeout(() => __controller.abort(new ApiTimeoutError()), __timeoutMs);
+        }
+        const __signals = [__controller.signal, ...(signal ? [signal] : [])];
+        const __signal = __signals.length > 1 ? AbortSignal.any(__signals) : __controller.signal;
         const __maxAttempts = options?.retry?.maxAttempts ?? 0;
         const __backoffMs = options?.retry?.backoffMs ?? 200;
         const __retryOn = options?.retry?.retryOn ?? ((s: number) => s >= 500);
         let __attempt = 0;
         // eslint-disable-next-line no-constant-condition
         while (true) {
-          let __req: RequestInit = { method: 'GET', headers: { 'Cookie': Object.entries(cookies ?? {}).map(([k, v]) => `${k}=${v}`).join('; ') } };
+          let __req: RequestInit = { method: 'GET', headers: { 'Cookie': Object.entries(cookies ?? {}).map(([k, v]) => `${k}=${v}`).join('; ') }, signal: __signal };
           if (options?.authInterceptor) __req = await options.authInterceptor(__req);
           try {
             const res = await fetch(`${_baseUrl}/api/ec-param-kinds2/whoami`, __req);
             if (!res.ok) throw new ApiError(res.status, await res.json(), `SPIA GET ${res.url} failed: ${res.status} ${res.statusText}`);
+            clearTimeout(__timeoutId);
             return res.json();
           } catch (error) {
+            if (error instanceof Error && error.name === 'AbortError') {
+              clearTimeout(__timeoutId);
+              throw new ApiTimeoutError();
+            }
             if (error instanceof ApiError && __retryOn(error.status) && __attempt < __maxAttempts) {
               __attempt++;
               await new Promise(r => setTimeout(r, __backoffMs));
             } else {
+              clearTimeout(__timeoutId);
               throw error;
             }
           }
@@ -404,24 +528,38 @@ export function createApi(options?: ClientOptions) {
       /**
        * Endpoint using @RequestAttribute — server-side only attribute, excluded from SDK.
        */
-      requestAttr: async (): Promise<string> => {
+      requestAttr: async (signal?: AbortSignal): Promise<string> => {
+        const __timeoutMs = options?.timeoutMs;
+        const __controller = new AbortController();
+        let __timeoutId: ReturnType<typeof setTimeout> | undefined;
+        if (__timeoutMs !== undefined) {
+          __timeoutId = setTimeout(() => __controller.abort(new ApiTimeoutError()), __timeoutMs);
+        }
+        const __signals = [__controller.signal, ...(signal ? [signal] : [])];
+        const __signal = __signals.length > 1 ? AbortSignal.any(__signals) : __controller.signal;
         const __maxAttempts = options?.retry?.maxAttempts ?? 0;
         const __backoffMs = options?.retry?.backoffMs ?? 200;
         const __retryOn = options?.retry?.retryOn ?? ((s: number) => s >= 500);
         let __attempt = 0;
         // eslint-disable-next-line no-constant-condition
         while (true) {
-          let __req: RequestInit = { method: 'GET' };
+          let __req: RequestInit = { method: 'GET', signal: __signal };
           if (options?.authInterceptor) __req = await options.authInterceptor(__req);
           try {
             const res = await fetch(`${_baseUrl}/api/ec-param-kinds2/request-attr`, __req);
             if (!res.ok) throw new ApiError(res.status, await res.json(), `SPIA GET ${res.url} failed: ${res.status} ${res.statusText}`);
+            clearTimeout(__timeoutId);
             return res.json();
           } catch (error) {
+            if (error instanceof Error && error.name === 'AbortError') {
+              clearTimeout(__timeoutId);
+              throw new ApiTimeoutError();
+            }
             if (error instanceof ApiError && __retryOn(error.status) && __attempt < __maxAttempts) {
               __attempt++;
               await new Promise(r => setTimeout(r, __backoffMs));
             } else {
+              clearTimeout(__timeoutId);
               throw error;
             }
           }
@@ -431,24 +569,38 @@ export function createApi(options?: ClientOptions) {
       /**
        * Endpoint using @MatrixVariable — key=value segments in path.
        */
-      getItemWithMatrix: async (id: number, color: string): Promise<string> => {
+      getItemWithMatrix: async (id: number, color: string, signal?: AbortSignal): Promise<string> => {
+        const __timeoutMs = options?.timeoutMs;
+        const __controller = new AbortController();
+        let __timeoutId: ReturnType<typeof setTimeout> | undefined;
+        if (__timeoutMs !== undefined) {
+          __timeoutId = setTimeout(() => __controller.abort(new ApiTimeoutError()), __timeoutMs);
+        }
+        const __signals = [__controller.signal, ...(signal ? [signal] : [])];
+        const __signal = __signals.length > 1 ? AbortSignal.any(__signals) : __controller.signal;
         const __maxAttempts = options?.retry?.maxAttempts ?? 0;
         const __backoffMs = options?.retry?.backoffMs ?? 200;
         const __retryOn = options?.retry?.retryOn ?? ((s: number) => s >= 500);
         let __attempt = 0;
         // eslint-disable-next-line no-constant-condition
         while (true) {
-          let __req: RequestInit = { method: 'GET' };
+          let __req: RequestInit = { method: 'GET', signal: __signal };
           if (options?.authInterceptor) __req = await options.authInterceptor(__req);
           try {
             const res = await fetch(`${_baseUrl}/api/ec-param-kinds2/items/${encodeURIComponent(String(id))}?color=${encodeURIComponent(String(color))}`, __req);
             if (!res.ok) throw new ApiError(res.status, await res.json(), `SPIA GET ${res.url} failed: ${res.status} ${res.statusText}`);
+            clearTimeout(__timeoutId);
             return res.json();
           } catch (error) {
+            if (error instanceof Error && error.name === 'AbortError') {
+              clearTimeout(__timeoutId);
+              throw new ApiTimeoutError();
+            }
             if (error instanceof ApiError && __retryOn(error.status) && __attempt < __maxAttempts) {
               __attempt++;
               await new Promise(r => setTimeout(r, __backoffMs));
             } else {
+              clearTimeout(__timeoutId);
               throw error;
             }
           }
@@ -457,72 +609,114 @@ export function createApi(options?: ClientOptions) {
 
     },
     ecSealed: {
-      getCircle: async (): Promise<Shape> => {
+      getCircle: async (signal?: AbortSignal): Promise<Shape> => {
+        const __timeoutMs = options?.timeoutMs;
+        const __controller = new AbortController();
+        let __timeoutId: ReturnType<typeof setTimeout> | undefined;
+        if (__timeoutMs !== undefined) {
+          __timeoutId = setTimeout(() => __controller.abort(new ApiTimeoutError()), __timeoutMs);
+        }
+        const __signals = [__controller.signal, ...(signal ? [signal] : [])];
+        const __signal = __signals.length > 1 ? AbortSignal.any(__signals) : __controller.signal;
         const __maxAttempts = options?.retry?.maxAttempts ?? 0;
         const __backoffMs = options?.retry?.backoffMs ?? 200;
         const __retryOn = options?.retry?.retryOn ?? ((s: number) => s >= 500);
         let __attempt = 0;
         // eslint-disable-next-line no-constant-condition
         while (true) {
-          let __req: RequestInit = { method: 'GET' };
+          let __req: RequestInit = { method: 'GET', signal: __signal };
           if (options?.authInterceptor) __req = await options.authInterceptor(__req);
           try {
             const res = await fetch(`${_baseUrl}/api/ec-sealed/shape/circle`, __req);
             if (!res.ok) throw new ApiError(res.status, await res.json(), `SPIA GET ${res.url} failed: ${res.status} ${res.statusText}`);
+            clearTimeout(__timeoutId);
             return res.json();
           } catch (error) {
+            if (error instanceof Error && error.name === 'AbortError') {
+              clearTimeout(__timeoutId);
+              throw new ApiTimeoutError();
+            }
             if (error instanceof ApiError && __retryOn(error.status) && __attempt < __maxAttempts) {
               __attempt++;
               await new Promise(r => setTimeout(r, __backoffMs));
             } else {
+              clearTimeout(__timeoutId);
               throw error;
             }
           }
         }
       },
 
-      getSquare: async (): Promise<Shape> => {
+      getSquare: async (signal?: AbortSignal): Promise<Shape> => {
+        const __timeoutMs = options?.timeoutMs;
+        const __controller = new AbortController();
+        let __timeoutId: ReturnType<typeof setTimeout> | undefined;
+        if (__timeoutMs !== undefined) {
+          __timeoutId = setTimeout(() => __controller.abort(new ApiTimeoutError()), __timeoutMs);
+        }
+        const __signals = [__controller.signal, ...(signal ? [signal] : [])];
+        const __signal = __signals.length > 1 ? AbortSignal.any(__signals) : __controller.signal;
         const __maxAttempts = options?.retry?.maxAttempts ?? 0;
         const __backoffMs = options?.retry?.backoffMs ?? 200;
         const __retryOn = options?.retry?.retryOn ?? ((s: number) => s >= 500);
         let __attempt = 0;
         // eslint-disable-next-line no-constant-condition
         while (true) {
-          let __req: RequestInit = { method: 'GET' };
+          let __req: RequestInit = { method: 'GET', signal: __signal };
           if (options?.authInterceptor) __req = await options.authInterceptor(__req);
           try {
             const res = await fetch(`${_baseUrl}/api/ec-sealed/shape/square`, __req);
             if (!res.ok) throw new ApiError(res.status, await res.json(), `SPIA GET ${res.url} failed: ${res.status} ${res.statusText}`);
+            clearTimeout(__timeoutId);
             return res.json();
           } catch (error) {
+            if (error instanceof Error && error.name === 'AbortError') {
+              clearTimeout(__timeoutId);
+              throw new ApiTimeoutError();
+            }
             if (error instanceof ApiError && __retryOn(error.status) && __attempt < __maxAttempts) {
               __attempt++;
               await new Promise(r => setTimeout(r, __backoffMs));
             } else {
+              clearTimeout(__timeoutId);
               throw error;
             }
           }
         }
       },
 
-      getTriangle: async (): Promise<Shape> => {
+      getTriangle: async (signal?: AbortSignal): Promise<Shape> => {
+        const __timeoutMs = options?.timeoutMs;
+        const __controller = new AbortController();
+        let __timeoutId: ReturnType<typeof setTimeout> | undefined;
+        if (__timeoutMs !== undefined) {
+          __timeoutId = setTimeout(() => __controller.abort(new ApiTimeoutError()), __timeoutMs);
+        }
+        const __signals = [__controller.signal, ...(signal ? [signal] : [])];
+        const __signal = __signals.length > 1 ? AbortSignal.any(__signals) : __controller.signal;
         const __maxAttempts = options?.retry?.maxAttempts ?? 0;
         const __backoffMs = options?.retry?.backoffMs ?? 200;
         const __retryOn = options?.retry?.retryOn ?? ((s: number) => s >= 500);
         let __attempt = 0;
         // eslint-disable-next-line no-constant-condition
         while (true) {
-          let __req: RequestInit = { method: 'GET' };
+          let __req: RequestInit = { method: 'GET', signal: __signal };
           if (options?.authInterceptor) __req = await options.authInterceptor(__req);
           try {
             const res = await fetch(`${_baseUrl}/api/ec-sealed/shape/triangle`, __req);
             if (!res.ok) throw new ApiError(res.status, await res.json(), `SPIA GET ${res.url} failed: ${res.status} ${res.statusText}`);
+            clearTimeout(__timeoutId);
             return res.json();
           } catch (error) {
+            if (error instanceof Error && error.name === 'AbortError') {
+              clearTimeout(__timeoutId);
+              throw new ApiTimeoutError();
+            }
             if (error instanceof ApiError && __retryOn(error.status) && __attempt < __maxAttempts) {
               __attempt++;
               await new Promise(r => setTimeout(r, __backoffMs));
             } else {
+              clearTimeout(__timeoutId);
               throw error;
             }
           }
@@ -531,48 +725,160 @@ export function createApi(options?: ClientOptions) {
 
     },
     ecStreaming: {
-      ticks: async (): Promise<AsyncIterable<Tick>> => {
+      ticks: async (signal?: AbortSignal): Promise<AsyncIterable<Tick>> => {
+        const __timeoutMs = options?.timeoutMs;
+        const __controller = new AbortController();
+        let __timeoutId: ReturnType<typeof setTimeout> | undefined;
+        if (__timeoutMs !== undefined) {
+          __timeoutId = setTimeout(() => __controller.abort(new ApiTimeoutError()), __timeoutMs);
+        }
+        const __signals = [__controller.signal, ...(signal ? [signal] : [])];
+        const __signal = __signals.length > 1 ? AbortSignal.any(__signals) : __controller.signal;
         const __maxAttempts = options?.retry?.maxAttempts ?? 0;
         const __backoffMs = options?.retry?.backoffMs ?? 200;
         const __retryOn = options?.retry?.retryOn ?? ((s: number) => s >= 500);
         let __attempt = 0;
         // eslint-disable-next-line no-constant-condition
         while (true) {
-          let __req: RequestInit = { method: 'GET' };
+          let __req: RequestInit = { method: 'GET', signal: __signal };
           if (options?.authInterceptor) __req = await options.authInterceptor(__req);
           try {
             const res = await fetch(`${_baseUrl}/api/ec-streaming/ticks`, __req);
             if (!res.ok) throw new ApiError(res.status, await res.json(), `SPIA GET ${res.url} failed: ${res.status} ${res.statusText}`);
+            clearTimeout(__timeoutId);
             return res.json();
           } catch (error) {
+            if (error instanceof Error && error.name === 'AbortError') {
+              clearTimeout(__timeoutId);
+              throw new ApiTimeoutError();
+            }
             if (error instanceof ApiError && __retryOn(error.status) && __attempt < __maxAttempts) {
               __attempt++;
               await new Promise(r => setTimeout(r, __backoffMs));
             } else {
+              clearTimeout(__timeoutId);
               throw error;
             }
           }
         }
       },
 
-      download: async (name: string): Promise<Blob> => {
+      download: async (name: string, signal?: AbortSignal): Promise<Blob> => {
+        const __timeoutMs = options?.timeoutMs;
+        const __controller = new AbortController();
+        let __timeoutId: ReturnType<typeof setTimeout> | undefined;
+        if (__timeoutMs !== undefined) {
+          __timeoutId = setTimeout(() => __controller.abort(new ApiTimeoutError()), __timeoutMs);
+        }
+        const __signals = [__controller.signal, ...(signal ? [signal] : [])];
+        const __signal = __signals.length > 1 ? AbortSignal.any(__signals) : __controller.signal;
         const __maxAttempts = options?.retry?.maxAttempts ?? 0;
         const __backoffMs = options?.retry?.backoffMs ?? 200;
         const __retryOn = options?.retry?.retryOn ?? ((s: number) => s >= 500);
         let __attempt = 0;
         // eslint-disable-next-line no-constant-condition
         while (true) {
-          let __req: RequestInit = { method: 'GET' };
+          let __req: RequestInit = { method: 'GET', signal: __signal };
           if (options?.authInterceptor) __req = await options.authInterceptor(__req);
           try {
             const res = await fetch(`${_baseUrl}/api/ec-streaming/file/${encodeURIComponent(String(name))}`, __req);
             if (!res.ok) throw new ApiError(res.status, await res.json(), `SPIA GET ${res.url} failed: ${res.status} ${res.statusText}`);
+            clearTimeout(__timeoutId);
             return res.json();
           } catch (error) {
+            if (error instanceof Error && error.name === 'AbortError') {
+              clearTimeout(__timeoutId);
+              throw new ApiTimeoutError();
+            }
             if (error instanceof ApiError && __retryOn(error.status) && __attempt < __maxAttempts) {
               __attempt++;
               await new Promise(r => setTimeout(r, __backoffMs));
             } else {
+              clearTimeout(__timeoutId);
+              throw error;
+            }
+          }
+        }
+      },
+
+    },
+    ecTimeout: {
+      /**
+       * Sleeps for 1 second before responding — useful for testing timeoutMs + AbortSignal.
+       */
+      slow: async (signal?: AbortSignal): Promise<EcTimeoutResponse> => {
+        const __timeoutMs = options?.timeoutMs;
+        const __controller = new AbortController();
+        let __timeoutId: ReturnType<typeof setTimeout> | undefined;
+        if (__timeoutMs !== undefined) {
+          __timeoutId = setTimeout(() => __controller.abort(new ApiTimeoutError()), __timeoutMs);
+        }
+        const __signals = [__controller.signal, ...(signal ? [signal] : [])];
+        const __signal = __signals.length > 1 ? AbortSignal.any(__signals) : __controller.signal;
+        const __maxAttempts = options?.retry?.maxAttempts ?? 0;
+        const __backoffMs = options?.retry?.backoffMs ?? 200;
+        const __retryOn = options?.retry?.retryOn ?? ((s: number) => s >= 500);
+        let __attempt = 0;
+        // eslint-disable-next-line no-constant-condition
+        while (true) {
+          let __req: RequestInit = { method: 'GET', signal: __signal };
+          if (options?.authInterceptor) __req = await options.authInterceptor(__req);
+          try {
+            const res = await fetch(`${_baseUrl}/api/ec-timeout/slow`, __req);
+            if (!res.ok) throw new ApiError(res.status, await res.json(), `SPIA GET ${res.url} failed: ${res.status} ${res.statusText}`);
+            clearTimeout(__timeoutId);
+            return res.json();
+          } catch (error) {
+            if (error instanceof Error && error.name === 'AbortError') {
+              clearTimeout(__timeoutId);
+              throw new ApiTimeoutError();
+            }
+            if (error instanceof ApiError && __retryOn(error.status) && __attempt < __maxAttempts) {
+              __attempt++;
+              await new Promise(r => setTimeout(r, __backoffMs));
+            } else {
+              clearTimeout(__timeoutId);
+              throw error;
+            }
+          }
+        }
+      },
+
+      /**
+       * Responds immediately — baseline for comparison.
+       */
+      fast: async (signal?: AbortSignal): Promise<EcTimeoutResponse> => {
+        const __timeoutMs = options?.timeoutMs;
+        const __controller = new AbortController();
+        let __timeoutId: ReturnType<typeof setTimeout> | undefined;
+        if (__timeoutMs !== undefined) {
+          __timeoutId = setTimeout(() => __controller.abort(new ApiTimeoutError()), __timeoutMs);
+        }
+        const __signals = [__controller.signal, ...(signal ? [signal] : [])];
+        const __signal = __signals.length > 1 ? AbortSignal.any(__signals) : __controller.signal;
+        const __maxAttempts = options?.retry?.maxAttempts ?? 0;
+        const __backoffMs = options?.retry?.backoffMs ?? 200;
+        const __retryOn = options?.retry?.retryOn ?? ((s: number) => s >= 500);
+        let __attempt = 0;
+        // eslint-disable-next-line no-constant-condition
+        while (true) {
+          let __req: RequestInit = { method: 'GET', signal: __signal };
+          if (options?.authInterceptor) __req = await options.authInterceptor(__req);
+          try {
+            const res = await fetch(`${_baseUrl}/api/ec-timeout/fast`, __req);
+            if (!res.ok) throw new ApiError(res.status, await res.json(), `SPIA GET ${res.url} failed: ${res.status} ${res.statusText}`);
+            clearTimeout(__timeoutId);
+            return res.json();
+          } catch (error) {
+            if (error instanceof Error && error.name === 'AbortError') {
+              clearTimeout(__timeoutId);
+              throw new ApiTimeoutError();
+            }
+            if (error instanceof ApiError && __retryOn(error.status) && __attempt < __maxAttempts) {
+              __attempt++;
+              await new Promise(r => setTimeout(r, __backoffMs));
+            } else {
+              clearTimeout(__timeoutId);
               throw error;
             }
           }
@@ -581,48 +887,76 @@ export function createApi(options?: ClientOptions) {
 
     },
     ecValidation: {
-      submit: async (body: EcValidationRequest): Promise<EcValidationRequest> => {
+      submit: async (body: EcValidationRequest, signal?: AbortSignal): Promise<EcValidationRequest> => {
+        const __timeoutMs = options?.timeoutMs;
+        const __controller = new AbortController();
+        let __timeoutId: ReturnType<typeof setTimeout> | undefined;
+        if (__timeoutMs !== undefined) {
+          __timeoutId = setTimeout(() => __controller.abort(new ApiTimeoutError()), __timeoutMs);
+        }
+        const __signals = [__controller.signal, ...(signal ? [signal] : [])];
+        const __signal = __signals.length > 1 ? AbortSignal.any(__signals) : __controller.signal;
         const __maxAttempts = options?.retry?.maxAttempts ?? 0;
         const __backoffMs = options?.retry?.backoffMs ?? 200;
         const __retryOn = options?.retry?.retryOn ?? ((s: number) => s >= 500);
         let __attempt = 0;
         // eslint-disable-next-line no-constant-condition
         while (true) {
-          let __req: RequestInit = { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) };
+          let __req: RequestInit = { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body), signal: __signal };
           if (options?.authInterceptor) __req = await options.authInterceptor(__req);
           try {
             const res = await fetch(`${_baseUrl}/ec-validation/submit`, __req);
             if (!res.ok) throw new ApiError(res.status, await res.json(), `SPIA POST ${res.url} failed: ${res.status} ${res.statusText}`);
+            clearTimeout(__timeoutId);
             return res.json();
           } catch (error) {
+            if (error instanceof Error && error.name === 'AbortError') {
+              clearTimeout(__timeoutId);
+              throw new ApiTimeoutError();
+            }
             if (error instanceof ApiError && __retryOn(error.status) && __attempt < __maxAttempts) {
               __attempt++;
               await new Promise(r => setTimeout(r, __backoffMs));
             } else {
+              clearTimeout(__timeoutId);
               throw error;
             }
           }
         }
       },
 
-      wrapped: async (): Promise<Wrapper<WrapperItem>> => {
+      wrapped: async (signal?: AbortSignal): Promise<Wrapper<WrapperItem>> => {
+        const __timeoutMs = options?.timeoutMs;
+        const __controller = new AbortController();
+        let __timeoutId: ReturnType<typeof setTimeout> | undefined;
+        if (__timeoutMs !== undefined) {
+          __timeoutId = setTimeout(() => __controller.abort(new ApiTimeoutError()), __timeoutMs);
+        }
+        const __signals = [__controller.signal, ...(signal ? [signal] : [])];
+        const __signal = __signals.length > 1 ? AbortSignal.any(__signals) : __controller.signal;
         const __maxAttempts = options?.retry?.maxAttempts ?? 0;
         const __backoffMs = options?.retry?.backoffMs ?? 200;
         const __retryOn = options?.retry?.retryOn ?? ((s: number) => s >= 500);
         let __attempt = 0;
         // eslint-disable-next-line no-constant-condition
         while (true) {
-          let __req: RequestInit = { method: 'GET' };
+          let __req: RequestInit = { method: 'GET', signal: __signal };
           if (options?.authInterceptor) __req = await options.authInterceptor(__req);
           try {
             const res = await fetch(`${_baseUrl}/ec-validation/wrapped`, __req);
             if (!res.ok) throw new ApiError(res.status, await res.json(), `SPIA GET ${res.url} failed: ${res.status} ${res.statusText}`);
+            clearTimeout(__timeoutId);
             return res.json();
           } catch (error) {
+            if (error instanceof Error && error.name === 'AbortError') {
+              clearTimeout(__timeoutId);
+              throw new ApiTimeoutError();
+            }
             if (error instanceof ApiError && __retryOn(error.status) && __attempt < __maxAttempts) {
               __attempt++;
               await new Promise(r => setTimeout(r, __backoffMs));
             } else {
+              clearTimeout(__timeoutId);
               throw error;
             }
           }
@@ -631,72 +965,114 @@ export function createApi(options?: ClientOptions) {
 
     },
     ecValueClass: {
-      getUser: async (id: string): Promise<UserWithId> => {
+      getUser: async (id: string, signal?: AbortSignal): Promise<UserWithId> => {
+        const __timeoutMs = options?.timeoutMs;
+        const __controller = new AbortController();
+        let __timeoutId: ReturnType<typeof setTimeout> | undefined;
+        if (__timeoutMs !== undefined) {
+          __timeoutId = setTimeout(() => __controller.abort(new ApiTimeoutError()), __timeoutMs);
+        }
+        const __signals = [__controller.signal, ...(signal ? [signal] : [])];
+        const __signal = __signals.length > 1 ? AbortSignal.any(__signals) : __controller.signal;
         const __maxAttempts = options?.retry?.maxAttempts ?? 0;
         const __backoffMs = options?.retry?.backoffMs ?? 200;
         const __retryOn = options?.retry?.retryOn ?? ((s: number) => s >= 500);
         let __attempt = 0;
         // eslint-disable-next-line no-constant-condition
         while (true) {
-          let __req: RequestInit = { method: 'GET' };
+          let __req: RequestInit = { method: 'GET', signal: __signal };
           if (options?.authInterceptor) __req = await options.authInterceptor(__req);
           try {
             const res = await fetch(`${_baseUrl}/api/ec-value-class/users/${encodeURIComponent(String(id))}`, __req);
             if (!res.ok) throw new ApiError(res.status, await res.json(), `SPIA GET ${res.url} failed: ${res.status} ${res.statusText}`);
+            clearTimeout(__timeoutId);
             return res.json();
           } catch (error) {
+            if (error instanceof Error && error.name === 'AbortError') {
+              clearTimeout(__timeoutId);
+              throw new ApiTimeoutError();
+            }
             if (error instanceof ApiError && __retryOn(error.status) && __attempt < __maxAttempts) {
               __attempt++;
               await new Promise(r => setTimeout(r, __backoffMs));
             } else {
+              clearTimeout(__timeoutId);
               throw error;
             }
           }
         }
       },
 
-      createUser: async (body: UserWithId): Promise<UserWithId> => {
+      createUser: async (body: UserWithId, signal?: AbortSignal): Promise<UserWithId> => {
+        const __timeoutMs = options?.timeoutMs;
+        const __controller = new AbortController();
+        let __timeoutId: ReturnType<typeof setTimeout> | undefined;
+        if (__timeoutMs !== undefined) {
+          __timeoutId = setTimeout(() => __controller.abort(new ApiTimeoutError()), __timeoutMs);
+        }
+        const __signals = [__controller.signal, ...(signal ? [signal] : [])];
+        const __signal = __signals.length > 1 ? AbortSignal.any(__signals) : __controller.signal;
         const __maxAttempts = options?.retry?.maxAttempts ?? 0;
         const __backoffMs = options?.retry?.backoffMs ?? 200;
         const __retryOn = options?.retry?.retryOn ?? ((s: number) => s >= 500);
         let __attempt = 0;
         // eslint-disable-next-line no-constant-condition
         while (true) {
-          let __req: RequestInit = { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) };
+          let __req: RequestInit = { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body), signal: __signal };
           if (options?.authInterceptor) __req = await options.authInterceptor(__req);
           try {
             const res = await fetch(`${_baseUrl}/api/ec-value-class/users`, __req);
             if (!res.ok) throw new ApiError(res.status, await res.json(), `SPIA POST ${res.url} failed: ${res.status} ${res.statusText}`);
+            clearTimeout(__timeoutId);
             return res.json();
           } catch (error) {
+            if (error instanceof Error && error.name === 'AbortError') {
+              clearTimeout(__timeoutId);
+              throw new ApiTimeoutError();
+            }
             if (error instanceof ApiError && __retryOn(error.status) && __attempt < __maxAttempts) {
               __attempt++;
               await new Promise(r => setTimeout(r, __backoffMs));
             } else {
+              clearTimeout(__timeoutId);
               throw error;
             }
           }
         }
       },
 
-      getOrderId: async (id: number): Promise<OrderId> => {
+      getOrderId: async (id: number, signal?: AbortSignal): Promise<OrderId> => {
+        const __timeoutMs = options?.timeoutMs;
+        const __controller = new AbortController();
+        let __timeoutId: ReturnType<typeof setTimeout> | undefined;
+        if (__timeoutMs !== undefined) {
+          __timeoutId = setTimeout(() => __controller.abort(new ApiTimeoutError()), __timeoutMs);
+        }
+        const __signals = [__controller.signal, ...(signal ? [signal] : [])];
+        const __signal = __signals.length > 1 ? AbortSignal.any(__signals) : __controller.signal;
         const __maxAttempts = options?.retry?.maxAttempts ?? 0;
         const __backoffMs = options?.retry?.backoffMs ?? 200;
         const __retryOn = options?.retry?.retryOn ?? ((s: number) => s >= 500);
         let __attempt = 0;
         // eslint-disable-next-line no-constant-condition
         while (true) {
-          let __req: RequestInit = { method: 'GET' };
+          let __req: RequestInit = { method: 'GET', signal: __signal };
           if (options?.authInterceptor) __req = await options.authInterceptor(__req);
           try {
             const res = await fetch(`${_baseUrl}/api/ec-value-class/orders/${encodeURIComponent(String(id))}`, __req);
             if (!res.ok) throw new ApiError(res.status, await res.json(), `SPIA GET ${res.url} failed: ${res.status} ${res.statusText}`);
+            clearTimeout(__timeoutId);
             return res.json();
           } catch (error) {
+            if (error instanceof Error && error.name === 'AbortError') {
+              clearTimeout(__timeoutId);
+              throw new ApiTimeoutError();
+            }
             if (error instanceof ApiError && __retryOn(error.status) && __attempt < __maxAttempts) {
               __attempt++;
               await new Promise(r => setTimeout(r, __backoffMs));
             } else {
+              clearTimeout(__timeoutId);
               throw error;
             }
           }
@@ -708,24 +1084,38 @@ export function createApi(options?: ClientOptions) {
       /**
        * Retrieve a user profile.
        */
-      getUserProfile: async (id: number): Promise<UserProfileDto> => {
+      getUserProfile: async (id: number, signal?: AbortSignal): Promise<UserProfileDto> => {
+        const __timeoutMs = options?.timeoutMs;
+        const __controller = new AbortController();
+        let __timeoutId: ReturnType<typeof setTimeout> | undefined;
+        if (__timeoutMs !== undefined) {
+          __timeoutId = setTimeout(() => __controller.abort(new ApiTimeoutError()), __timeoutMs);
+        }
+        const __signals = [__controller.signal, ...(signal ? [signal] : [])];
+        const __signal = __signals.length > 1 ? AbortSignal.any(__signals) : __controller.signal;
         const __maxAttempts = options?.retry?.maxAttempts ?? 0;
         const __backoffMs = options?.retry?.backoffMs ?? 200;
         const __retryOn = options?.retry?.retryOn ?? ((s: number) => s >= 500);
         let __attempt = 0;
         // eslint-disable-next-line no-constant-condition
         while (true) {
-          let __req: RequestInit = { method: 'GET' };
+          let __req: RequestInit = { method: 'GET', signal: __signal };
           if (options?.authInterceptor) __req = await options.authInterceptor(__req);
           try {
             const res = await fetch(`${_baseUrl}/api/users/${encodeURIComponent(String(id))}`, __req);
             if (!res.ok) throw new ApiError(res.status, await res.json(), `SPIA GET ${res.url} failed: ${res.status} ${res.statusText}`);
+            clearTimeout(__timeoutId);
             return res.json();
           } catch (error) {
+            if (error instanceof Error && error.name === 'AbortError') {
+              clearTimeout(__timeoutId);
+              throw new ApiTimeoutError();
+            }
             if (error instanceof ApiError && __retryOn(error.status) && __attempt < __maxAttempts) {
               __attempt++;
               await new Promise(r => setTimeout(r, __backoffMs));
             } else {
+              clearTimeout(__timeoutId);
               throw error;
             }
           }
@@ -735,24 +1125,38 @@ export function createApi(options?: ClientOptions) {
       /**
        * Create a new user.
        */
-      createUser: async (request: CreateUserRequest): Promise<UserProfileDto> => {
+      createUser: async (request: CreateUserRequest, signal?: AbortSignal): Promise<UserProfileDto> => {
+        const __timeoutMs = options?.timeoutMs;
+        const __controller = new AbortController();
+        let __timeoutId: ReturnType<typeof setTimeout> | undefined;
+        if (__timeoutMs !== undefined) {
+          __timeoutId = setTimeout(() => __controller.abort(new ApiTimeoutError()), __timeoutMs);
+        }
+        const __signals = [__controller.signal, ...(signal ? [signal] : [])];
+        const __signal = __signals.length > 1 ? AbortSignal.any(__signals) : __controller.signal;
         const __maxAttempts = options?.retry?.maxAttempts ?? 0;
         const __backoffMs = options?.retry?.backoffMs ?? 200;
         const __retryOn = options?.retry?.retryOn ?? ((s: number) => s >= 500);
         let __attempt = 0;
         // eslint-disable-next-line no-constant-condition
         while (true) {
-          let __req: RequestInit = { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(request) };
+          let __req: RequestInit = { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(request), signal: __signal };
           if (options?.authInterceptor) __req = await options.authInterceptor(__req);
           try {
             const res = await fetch(`${_baseUrl}/api/users`, __req);
             if (!res.ok) throw new ApiError(res.status, await res.json(), `SPIA POST ${res.url} failed: ${res.status} ${res.statusText}`);
+            clearTimeout(__timeoutId);
             return res.json();
           } catch (error) {
+            if (error instanceof Error && error.name === 'AbortError') {
+              clearTimeout(__timeoutId);
+              throw new ApiTimeoutError();
+            }
             if (error instanceof ApiError && __retryOn(error.status) && __attempt < __maxAttempts) {
               __attempt++;
               await new Promise(r => setTimeout(r, __backoffMs));
             } else {
+              clearTimeout(__timeoutId);
               throw error;
             }
           }
@@ -762,24 +1166,38 @@ export function createApi(options?: ClientOptions) {
       /**
        * Update an existing user.
        */
-      updateUser: async (id: number, request: UpdateUserRequest): Promise<UserProfileDto> => {
+      updateUser: async (id: number, request: UpdateUserRequest, signal?: AbortSignal): Promise<UserProfileDto> => {
+        const __timeoutMs = options?.timeoutMs;
+        const __controller = new AbortController();
+        let __timeoutId: ReturnType<typeof setTimeout> | undefined;
+        if (__timeoutMs !== undefined) {
+          __timeoutId = setTimeout(() => __controller.abort(new ApiTimeoutError()), __timeoutMs);
+        }
+        const __signals = [__controller.signal, ...(signal ? [signal] : [])];
+        const __signal = __signals.length > 1 ? AbortSignal.any(__signals) : __controller.signal;
         const __maxAttempts = options?.retry?.maxAttempts ?? 0;
         const __backoffMs = options?.retry?.backoffMs ?? 200;
         const __retryOn = options?.retry?.retryOn ?? ((s: number) => s >= 500);
         let __attempt = 0;
         // eslint-disable-next-line no-constant-condition
         while (true) {
-          let __req: RequestInit = { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(request) };
+          let __req: RequestInit = { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(request), signal: __signal };
           if (options?.authInterceptor) __req = await options.authInterceptor(__req);
           try {
             const res = await fetch(`${_baseUrl}/api/users/${encodeURIComponent(String(id))}`, __req);
             if (!res.ok) throw new ApiError(res.status, await res.json(), `SPIA PUT ${res.url} failed: ${res.status} ${res.statusText}`);
+            clearTimeout(__timeoutId);
             return res.json();
           } catch (error) {
+            if (error instanceof Error && error.name === 'AbortError') {
+              clearTimeout(__timeoutId);
+              throw new ApiTimeoutError();
+            }
             if (error instanceof ApiError && __retryOn(error.status) && __attempt < __maxAttempts) {
               __attempt++;
               await new Promise(r => setTimeout(r, __backoffMs));
             } else {
+              clearTimeout(__timeoutId);
               throw error;
             }
           }
@@ -789,24 +1207,38 @@ export function createApi(options?: ClientOptions) {
       /**
        * Delete a user.
        */
-      deleteUser: async (id: number): Promise<void> => {
+      deleteUser: async (id: number, signal?: AbortSignal): Promise<void> => {
+        const __timeoutMs = options?.timeoutMs;
+        const __controller = new AbortController();
+        let __timeoutId: ReturnType<typeof setTimeout> | undefined;
+        if (__timeoutMs !== undefined) {
+          __timeoutId = setTimeout(() => __controller.abort(new ApiTimeoutError()), __timeoutMs);
+        }
+        const __signals = [__controller.signal, ...(signal ? [signal] : [])];
+        const __signal = __signals.length > 1 ? AbortSignal.any(__signals) : __controller.signal;
         const __maxAttempts = options?.retry?.maxAttempts ?? 0;
         const __backoffMs = options?.retry?.backoffMs ?? 200;
         const __retryOn = options?.retry?.retryOn ?? ((s: number) => s >= 500);
         let __attempt = 0;
         // eslint-disable-next-line no-constant-condition
         while (true) {
-          let __req: RequestInit = { method: 'DELETE' };
+          let __req: RequestInit = { method: 'DELETE', signal: __signal };
           if (options?.authInterceptor) __req = await options.authInterceptor(__req);
           try {
             const res = await fetch(`${_baseUrl}/api/users/${encodeURIComponent(String(id))}`, __req);
             if (!res.ok) throw new ApiError(res.status, await res.json(), `SPIA DELETE ${res.url} failed: ${res.status} ${res.statusText}`);
+            clearTimeout(__timeoutId);
             return;
           } catch (error) {
+            if (error instanceof Error && error.name === 'AbortError') {
+              clearTimeout(__timeoutId);
+              throw new ApiTimeoutError();
+            }
             if (error instanceof ApiError && __retryOn(error.status) && __attempt < __maxAttempts) {
               __attempt++;
               await new Promise(r => setTimeout(r, __backoffMs));
             } else {
+              clearTimeout(__timeoutId);
               throw error;
             }
           }
@@ -818,29 +1250,43 @@ export function createApi(options?: ClientOptions) {
        * @param {number} [page=0] Server default: 0
        * @param {number} [size=20] Server default: 20
        */
-      listUsers: async (page?: number, size?: number, keyword?: string): Promise<Page<UserProfileDto>> => {
+      listUsers: async (page?: number, size?: number, keyword?: string, signal?: AbortSignal): Promise<Page<UserProfileDto>> => {
         const params = new URLSearchParams();
         if (page !== undefined) params.append('page', String(page));
         if (size !== undefined) params.append('size', String(size));
         if (keyword !== undefined) params.append('keyword', String(keyword));
         const qs = params.toString();
+        const __timeoutMs = options?.timeoutMs;
+        const __controller = new AbortController();
+        let __timeoutId: ReturnType<typeof setTimeout> | undefined;
+        if (__timeoutMs !== undefined) {
+          __timeoutId = setTimeout(() => __controller.abort(new ApiTimeoutError()), __timeoutMs);
+        }
+        const __signals = [__controller.signal, ...(signal ? [signal] : [])];
+        const __signal = __signals.length > 1 ? AbortSignal.any(__signals) : __controller.signal;
         const __maxAttempts = options?.retry?.maxAttempts ?? 0;
         const __backoffMs = options?.retry?.backoffMs ?? 200;
         const __retryOn = options?.retry?.retryOn ?? ((s: number) => s >= 500);
         let __attempt = 0;
         // eslint-disable-next-line no-constant-condition
         while (true) {
-          let __req: RequestInit = { method: 'GET' };
+          let __req: RequestInit = { method: 'GET', signal: __signal };
           if (options?.authInterceptor) __req = await options.authInterceptor(__req);
           try {
             const res = await fetch(`${_baseUrl}/api/users/list${qs ? `?${qs}` : ''}`, __req);
             if (!res.ok) throw new ApiError(res.status, await res.json(), `SPIA GET ${res.url} failed: ${res.status} ${res.statusText}`);
+            clearTimeout(__timeoutId);
             return res.json();
           } catch (error) {
+            if (error instanceof Error && error.name === 'AbortError') {
+              clearTimeout(__timeoutId);
+              throw new ApiTimeoutError();
+            }
             if (error instanceof ApiError && __retryOn(error.status) && __attempt < __maxAttempts) {
               __attempt++;
               await new Promise(r => setTimeout(r, __backoffMs));
             } else {
+              clearTimeout(__timeoutId);
               throw error;
             }
           }
@@ -850,24 +1296,38 @@ export function createApi(options?: ClientOptions) {
       /**
        * Return a user wrapped in a multi-parameter generic response envelope.
        */
-      wrappedUser: async (id: number): Promise<ApiResponse<UserProfileDto, string>> => {
+      wrappedUser: async (id: number, signal?: AbortSignal): Promise<ApiResponse<UserProfileDto, string>> => {
+        const __timeoutMs = options?.timeoutMs;
+        const __controller = new AbortController();
+        let __timeoutId: ReturnType<typeof setTimeout> | undefined;
+        if (__timeoutMs !== undefined) {
+          __timeoutId = setTimeout(() => __controller.abort(new ApiTimeoutError()), __timeoutMs);
+        }
+        const __signals = [__controller.signal, ...(signal ? [signal] : [])];
+        const __signal = __signals.length > 1 ? AbortSignal.any(__signals) : __controller.signal;
         const __maxAttempts = options?.retry?.maxAttempts ?? 0;
         const __backoffMs = options?.retry?.backoffMs ?? 200;
         const __retryOn = options?.retry?.retryOn ?? ((s: number) => s >= 500);
         let __attempt = 0;
         // eslint-disable-next-line no-constant-condition
         while (true) {
-          let __req: RequestInit = { method: 'GET' };
+          let __req: RequestInit = { method: 'GET', signal: __signal };
           if (options?.authInterceptor) __req = await options.authInterceptor(__req);
           try {
             const res = await fetch(`${_baseUrl}/api/users/${encodeURIComponent(String(id))}/wrapped`, __req);
             if (!res.ok) throw new ApiError(res.status, await res.json(), `SPIA GET ${res.url} failed: ${res.status} ${res.statusText}`);
+            clearTimeout(__timeoutId);
             return res.json();
           } catch (error) {
+            if (error instanceof Error && error.name === 'AbortError') {
+              clearTimeout(__timeoutId);
+              throw new ApiTimeoutError();
+            }
             if (error instanceof ApiError && __retryOn(error.status) && __attempt < __maxAttempts) {
               __attempt++;
               await new Promise(r => setTimeout(r, __backoffMs));
             } else {
+              clearTimeout(__timeoutId);
               throw error;
             }
           }

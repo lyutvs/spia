@@ -8,6 +8,7 @@ data class SdkConfig(
     val baseUrl: String? = null,
     val schemaOutput: SchemaOutput = SchemaOutput.NONE,
     val openApiOutput: OpenApiVersion = OpenApiVersion.NONE,
+    val splitByController: Boolean = false,
 )
 
 enum class EnumStyle { UNION, ENUM }

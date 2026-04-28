@@ -38,6 +38,10 @@ spia {
     clientOptions {
         baseUrl = "/api"
     }
+    // Bundle splitting (task 18): when enabled (set splitByController to true),
+    // the processor emits one `<slug>.api.ts` file per controller plus an
+    // `index.ts` barrel and a `_shared.ts` module. Bundlers can then
+    // tree-shake unused controllers.
 }
 
 /* ───────────── Frontend typecheck gate ─────────────

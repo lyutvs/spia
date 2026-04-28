@@ -309,6 +309,63 @@ No warning is emitted when the same module regenerates its own file (same
 module name, any digest) or when a new module writes content that happens to
 produce the same digest as an existing entry.
 
+## Bundle splitting
+
+By default the processor emits a single `api-sdk.ts` file containing every
+controller. For large APIs this defeats bundler tree-shaking — even if the
+frontend only calls one controller, the unused controllers ship with the
+bundle.
+
+Enable per-controller splitting in your `spia { … }` block:
+
+```kotlin
+spia {
+    outputPath = "src/main/frontend/generated/api-sdk.ts"
+    splitByController = true
+}
+```
+
+When `splitByController = true`, the processor emits the following files in
+the same directory as `outputPath` (so for the example above,
+`src/main/frontend/generated/`):
+
+| File | Contents |
+|---|---|
+| `_shared.ts` | All DTOs, enums, generics, sealed unions, value classes, the `ApiError` / `ApiTimeoutError` classes, and (for `apiClient = "fetch"`) the `ClientOptions` interface. |
+| `<slug>.api.ts` | One file per controller. Exports a `create<Controller>Api(...)` factory and re-exports everything from `_shared`. The slug is the kebab-case form of the controller name with the `Controller` suffix stripped (e.g. `UserController` → `user.api.ts`). |
+| `index.ts` | Barrel module that `export *`'s from `_shared` and every per-controller file. |
+
+For *N* controllers, the processor writes *N + 2* files. Consumers can either
+import from `index.ts` (no tree-shaking) or, to opt into tree-shaking, import
+the per-controller factory directly:
+
+```typescript
+// Tree-shaken — bundler drops every other controller's emitted code.
+import { createUserApi } from './generated/user.api';
+const api = createUserApi({ baseUrl: '/api' });
+```
+
+### Verifying tree-shaking with esbuild
+
+A quick way to confirm a bundler is dropping unused controllers is to run
+esbuild's `--analyze` against a sample entry:
+
+```bash
+echo "import { createUserApi } from './generated/user.api';
+const api = createUserApi({ baseUrl: '/api' });
+console.log(api);" > /tmp/entry.ts
+
+npx esbuild --bundle --tree-shaking=true --analyze /tmp/entry.ts > /dev/null
+```
+
+The analyze output should list `_shared.ts` and `user.api.ts` but NOT any
+other `*.api.ts` file. If you see other controllers in the output, double-
+check that you imported from `./<slug>.api` directly rather than from the
+`index.ts` barrel.
+
+The default for `splitByController` is `false` so existing single-file
+consumers see no change.
+
 ## Development
 
 Requirements: JDK 21, Node.js 18+, Gradle wrapper (bundled).

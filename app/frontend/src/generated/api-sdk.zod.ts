@@ -56,6 +56,12 @@ export const EcJavaDtoSchema = z.object({
 });
 export type EcJavaDtoSchema = z.infer<typeof EcJavaDtoSchema>;
 
+export const EcTimeoutResponseSchema = z.object({
+  message: z.string(),
+  delayMs: z.number(),
+});
+export type EcTimeoutResponseSchema = z.infer<typeof EcTimeoutResponseSchema>;
+
 export const EcValidationRequestSchema = z.object({
   name: z.string().min(1).max(50),
   age: z.number().min(0).max(120),

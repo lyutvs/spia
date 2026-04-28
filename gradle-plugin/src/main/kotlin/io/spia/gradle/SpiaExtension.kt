@@ -25,7 +25,8 @@ abstract class SpiaExtension @Inject constructor(private val objects: ObjectFact
 
     abstract val openApiOutput: Property<String>
 
+    var splitByController: Boolean = false
+
     // Reserved slots for upcoming tasks — uncomment and implement when the task lands:
-    // var splitByController: Boolean = false     // task 18 (split output per controller)
     // val npmPackage: NpmPackageOptions?         // task 21 (npm publish options)
 }

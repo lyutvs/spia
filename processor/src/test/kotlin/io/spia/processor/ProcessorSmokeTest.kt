@@ -1457,6 +1457,93 @@ class ProcessorSmokeTest {
     }
 
     @Test
+    fun `splitByController emits per-controller files plus index and _shared`(@TempDir tempDir: File) {
+        val outputPath = File(tempDir, "generated/api-sdk.ts").absolutePath
+        val outputDir = File(outputPath).parentFile
+
+        val sourceA = SourceFile.kotlin(
+            "UserController.kt",
+            """
+            package test
+
+            import org.springframework.web.bind.annotation.RestController
+            import org.springframework.web.bind.annotation.RequestMapping
+            import org.springframework.web.bind.annotation.GetMapping
+            import org.springframework.web.bind.annotation.PathVariable
+
+            data class UserDto(val id: Long, val name: String)
+
+            @RestController
+            @RequestMapping("/users")
+            class UserController {
+                @GetMapping("/{id}")
+                fun getUser(@PathVariable id: Long): UserDto = UserDto(id, "stub")
+            }
+            """.trimIndent()
+        )
+
+        val sourceB = SourceFile.kotlin(
+            "OrderController.kt",
+            """
+            package test
+
+            import org.springframework.web.bind.annotation.RestController
+            import org.springframework.web.bind.annotation.GetMapping
+
+            data class OrderDto(val sku: String, val qty: Int)
+
+            @RestController
+            class OrderController {
+                @GetMapping("/orders")
+                fun listOrders(): List<OrderDto> = emptyList()
+            }
+            """.trimIndent()
+        )
+
+        val compilation = KotlinCompilation().apply {
+            sources = listOf(sourceA, sourceB, coreSpringStubs())
+            inheritClassPath = true
+            messageOutputStream = System.out
+            configureKsp {
+                symbolProcessorProviders.add(SpiaProcessorProvider())
+                processorOptions["spia.outputPath"] = outputPath
+                processorOptions["spia.apiClient"] = "fetch"
+                processorOptions["spia.splitByController"] = "true"
+                incremental = false
+            }
+        }
+
+        val result = compilation.compile()
+        assertEquals(KotlinCompilation.ExitCode.OK, result.exitCode, "compilation should succeed with splitByController")
+
+        val indexFile = File(outputDir, "index.ts")
+        val sharedFile = File(outputDir, "_shared.ts")
+        val userApiFile = File(outputDir, "user.api.ts")
+        val orderApiFile = File(outputDir, "order.api.ts")
+
+        assertTrue(indexFile.exists(), "index.ts must exist in split mode at ${indexFile.absolutePath}")
+        assertTrue(sharedFile.exists(), "_shared.ts must exist in split mode at ${sharedFile.absolutePath}")
+        assertTrue(userApiFile.exists(), "user.api.ts must exist (per-controller file)")
+        assertTrue(orderApiFile.exists(), "order.api.ts must exist (per-controller file)")
+
+        val indexContent = indexFile.readText()
+        assertTrue(indexContent.contains("export *"), "index.ts must contain `export *` re-exports")
+        assertTrue(
+            indexContent.contains("from './user.api'") || indexContent.contains("from './order.api'"),
+            "index.ts must re-export the per-controller .api modules"
+        )
+
+        val sharedContent = sharedFile.readText()
+        assertTrue(sharedContent.contains("class ApiError"), "_shared.ts must contain the shared ApiError class")
+
+        val userApiContent = userApiFile.readText()
+        assertTrue(
+            userApiContent.contains("export {") || userApiContent.contains("export *"),
+            "per-controller files must re-export shared symbols"
+        )
+    }
+
+    @Test
     fun `EC-11 Kotlin value class emitted as branded TS type with constructor helper`(@TempDir tempDir: File) {
         val outputPath = File(tempDir, "generated/api-sdk.ts").absolutePath
 

@@ -74,7 +74,7 @@ class SpiaProcessor(
         val controllerInfos = controllers.map { analyzer.analyze(it, globalErrors) }
         val tsContent = generator.generate(controllerInfos, typeResolver)
 
-        writeOutput(config, tsContent, controllerInfos, typeResolver)
+        writeOutput(config, tsContent, controllerInfos, typeResolver, generator)
 
         return emptyList()
     }
@@ -84,9 +84,51 @@ class SpiaProcessor(
         content: String,
         controllerInfos: List<io.spia.processor.model.ControllerInfo> = emptyList(),
         typeResolver: TypeResolver? = null,
+        generator: TypeScriptGenerator? = null,
     ) {
         val outputPath = config.outputPath
-        if (outputPath != null) {
+        // Resolve the directory used for split-mode emission. If outputPath is set, we
+        // place per-controller / index / _shared files alongside it; otherwise default to
+        // <projectDir>/build/generated/spia. The default-branch single-file `api-sdk.ts`
+        // path below is preserved for back-compat (split == false).
+        val splitOutputDir: File = if (outputPath != null) {
+            File(outputPath).parentFile ?: File(".")
+        } else {
+            val projectDir = environment.options["spia.projectDir"] ?: error("SPIA plugin did not forward projectDir")
+            File(projectDir, "build/generated/spia")
+        }
+
+        if (config.splitByController && generator != null && typeResolver != null) {
+            splitOutputDir.mkdirs()
+            // _shared.ts — DTOs, ApiError, ClientOptions
+            val sharedContent = generator.generateShared(controllerInfos, typeResolver)
+            val sharedFile = File(splitOutputDir, "_shared.ts")
+            sharedFile.writeText(sharedContent)
+            logger.info("SPIA: Generated shared SDK module at ${sharedFile.absolutePath}")
+
+            // <slug>.api.ts per controller
+            for (controller in controllerInfos) {
+                val slug = generator.controllerToSlug(controller.name)
+                val perFile = File(splitOutputDir, "$slug.api.ts")
+                perFile.writeText(generator.generateController(controller, typeResolver))
+                logger.info("SPIA: Generated per-controller SDK at ${perFile.absolutePath}")
+            }
+
+            // index.ts barrel
+            val indexFile = File(splitOutputDir, "index.ts")
+            indexFile.writeText(generator.generateIndex(controllerInfos))
+            logger.info("SPIA: Generated SDK index at ${indexFile.absolutePath}")
+
+            if (config.schemaOutput == SchemaOutput.ZOD) {
+                val zodFile = File(splitOutputDir, "api-sdk.zod.ts")
+                val zodContent = ZodSchemaGenerator().generate(
+                    typeResolver.allDtos(),
+                    typeResolver.allGenerics(),
+                )
+                zodFile.writeText(zodContent)
+                logger.info("SPIA: Generated Zod schemas at ${zodFile.absolutePath}")
+            }
+        } else if (outputPath != null) {
             val file = File(outputPath)
             file.parentFile?.mkdirs()
             updateLockfile(file, content)
@@ -228,6 +270,7 @@ class SpiaProcessor(
                 "3.1" -> OpenApiVersion.V3_1
                 else -> OpenApiVersion.NONE
             },
+            splitByController = options["spia.splitByController"]?.toBoolean() ?: false,
         )
     }
 }

@@ -66,6 +66,7 @@ class SpiaPlugin : Plugin<Project> {
             }
 
             ksp.arg("spia.openApiOutput", extension.openApiOutput.get())
+            ksp.arg("spia.splitByController", extension.splitByController.toString())
         }
     }
 
