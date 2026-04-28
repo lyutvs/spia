@@ -74,12 +74,17 @@ class SpiaProcessor(
         val controllerInfos = controllers.map { analyzer.analyze(it, globalErrors) }
         val tsContent = generator.generate(controllerInfos, typeResolver)
 
-        writeOutput(config, tsContent, typeResolver)
+        writeOutput(config, tsContent, controllerInfos, typeResolver)
 
         return emptyList()
     }
 
-    private fun writeOutput(config: SdkConfig, content: String, typeResolver: TypeResolver? = null) {
+    private fun writeOutput(
+        config: SdkConfig,
+        content: String,
+        controllerInfos: List<io.spia.processor.model.ControllerInfo> = emptyList(),
+        typeResolver: TypeResolver? = null,
+    ) {
         val outputPath = config.outputPath
         if (outputPath != null) {
             val file = File(outputPath)
@@ -115,6 +120,26 @@ class SpiaProcessor(
                 zodFile.writeText(zodContent)
                 logger.info("SPIA: Generated Zod schemas at ${zodFile.absolutePath}")
             }
+        }
+
+        if (config.openApiOutput == OpenApiVersion.V3_1) {
+            val projectDir = environment.options["spia.projectDir"] ?: error("SPIA plugin did not forward projectDir")
+            val openApiDir = File(projectDir, "build/generated/spia")
+            openApiDir.mkdirs()
+            val allDtos = typeResolver?.allDtos()?.toList() ?: emptyList()
+            val allEnums = typeResolver?.allEnums()?.toList() ?: emptyList()
+            val allGenerics = typeResolver?.allGenerics()?.toList() ?: emptyList()
+            val json = OpenApiGenerator.generate(
+                controllers = controllerInfos,
+                dtos = allDtos,
+                enums = allEnums,
+                generics = allGenerics,
+                title = environment.options["spia.moduleName"] ?: "Spia API",
+                version = "1.0.0",
+            )
+            val openApiFile = File(openApiDir, "openapi.json")
+            openApiFile.writeText(json)
+            logger.info("SPIA: Generated OpenAPI spec at ${openApiFile.absolutePath}")
         }
     }
 
@@ -198,6 +223,10 @@ class SpiaProcessor(
             schemaOutput = when (options["spia.schemaOutput"]?.lowercase()) {
                 "zod" -> SchemaOutput.ZOD
                 else -> SchemaOutput.NONE
+            },
+            openApiOutput = when (options["spia.openApiOutput"]) {
+                "3.1" -> OpenApiVersion.V3_1
+                else -> OpenApiVersion.NONE
             },
         )
     }

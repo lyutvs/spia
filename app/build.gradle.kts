@@ -34,6 +34,7 @@ spia {
     enumStyle = "union"
     longType = "number"
     schemaOutput = "zod"
+    openApiOutput = "3.1"
     clientOptions {
         baseUrl = "/api"
     }

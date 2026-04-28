@@ -15,6 +15,7 @@ class SpiaPlugin : Plugin<Project> {
         extension.longType.convention("number")
         extension.apiClient.convention("fetch")
         extension.schemaOutput.convention("none")
+        extension.openApiOutput.convention("none")
 
         // Attach the matching processor artifact to the consumer's `ksp` configuration.
         // Consumers apply `id("io.spia")` and the processor is wired automatically —
@@ -63,6 +64,8 @@ class SpiaPlugin : Plugin<Project> {
             if (extension.clientOptions.baseUrl.isPresent) {
                 ksp.arg("spia.clientOptions.baseUrl", extension.clientOptions.baseUrl.get())
             }
+
+            ksp.arg("spia.openApiOutput", extension.openApiOutput.get())
         }
     }
 
