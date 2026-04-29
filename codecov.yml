@@ -1,0 +1,37 @@
+coverage:
+  status:
+    project:
+      default:
+        target: auto
+        threshold: 1%
+        if_not_found: success
+    patch:
+      default:
+        target: auto
+        threshold: 2%
+        if_not_found: success
+
+# Only the `processor` module uploads jacoco XML in CI (.github/workflows/ci.yml).
+# Anything outside that path is either:
+#   - a generated artifact (frontend/src/generated/**, openapi.json, *.spia-lock)
+#   - a demo/sandbox fixture (app/src/main/kotlin/io/spia/{sandbox,demo}/**)
+#   - a build/plugin module that isn't part of the published JAR's coverage scope
+#   - documentation
+# Including those in the patch denominator drags coverage down without signal,
+# so we ignore them. Removes false-negative blocks on docs-only or demo-only PRs.
+ignore:
+  - "app/**"
+  - "gradle-plugin/**"
+  - "docs/**"
+  - ".github/**"
+  - ".workflow/**"
+  - "**/build/**"
+  - "**/generated/**"
+  - "**/*.ts"
+  - "**/*.zod.ts"
+  - "**/*.spia-lock"
+
+comment:
+  layout: "reach,diff,flags,files"
+  behavior: default
+  require_changes: true
