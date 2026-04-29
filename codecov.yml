@@ -7,8 +7,8 @@ coverage:
         if_not_found: success
     patch:
       default:
-        target: auto
-        threshold: 2%
+        target: 60%
+        threshold: 0%
         if_not_found: success
 
 # Only the `processor` module uploads jacoco XML in CI (.github/workflows/ci.yml).
