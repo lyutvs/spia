@@ -46,6 +46,15 @@ jobs:
       - name: Build (processor tests + app + KSP + tsc --strict)
         run: ./gradlew build --stacktrace --no-daemon
 
+      - name: Verify openapi.json was generated
+        run: test -f app/build/generated/spia/openapi.json
+
+      - name: Verify configuration cache compatibility
+        run: ./gradlew :app:kspKotlin --configuration-cache --no-daemon && ./gradlew :app:kspKotlin --configuration-cache --no-daemon
+
+      - name: Verify processor coverage thresholds
+        run: ./gradlew :processor:jacocoTestCoverageVerification --no-daemon
+
       - name: Upload coverage to Codecov
         if: always()
         continue-on-error: true

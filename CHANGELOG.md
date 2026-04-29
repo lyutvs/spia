@@ -7,6 +7,46 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-04-28
+
+### Breaking Changes
+
+- **BREAKING CHANGE** — `createApi` for the fetch client no longer accepts a bare `baseUrl: string` argument. The signature is now `createApi(options?: ClientOptions)` where `ClientOptions` is `{ baseUrl?: string; authInterceptor?: ...; retry?: ... }`. The `baseUrl` is resolved as: caller-provided `options.baseUrl` > buildtime `config.baseUrl` (set via `spia { clientOptions { baseUrl = "..." } }`) > `""`. Consumers must migrate call sites from `createApi("/api")` to `createApi({ baseUrl: "/api" })` or configure the base URL at build time via the Gradle DSL.
+- **BREAKING CHANGE** — Kotlin `value class` / `inline class` types are now emitted as branded TypeScript types (`type UserId = string & { readonly __brand: 'UserId' }`) with a constructor helper instead of being flattened to their underlying primitive. Any frontend code that previously assigned a plain `string` where a value-class type is expected will now fail to compile under `tsc --strict`.
+
+### Added
+
+- Bean Validation constraints (`@NotNull`, `@Size`, `@Min`, `@Max`, `@Pattern`, `@NotBlank`, `@Email` from `jakarta.validation.constraints`) are now propagated to TypeScript as JSDoc tags (`@minLength`, `@maxLength`, `@minimum`, `@maximum`, `@pattern`, `@format email`) (EC-01).
+- Kotlin `sealed class` annotated with `@JsonTypeInfo(use=NAME, property="…")` is now emitted as a TypeScript discriminated union (`type Shape = ({ kind: 'circle' } & Circle) | …`) instead of requiring a manual nullable-field DTO workaround (EC-04).
+- `Pageable` parameters (`org.springframework.data.domain.Pageable`) are now expanded inline as `page?: number; size?: number; sort?: string` query fields in the generated SDK signature (EC-06).
+- SSE endpoints (`Flux<ServerSentEvent<T>>`) now emit as `AsyncIterable<T>` in the generated TypeScript SDK (EC-09 / reactive support).
+- `ResponseEntity<Resource>` (file download endpoints) now emits as `Promise<Blob>` (EC-09).
+- Java `@RestController` classes and plain Java POJOs (JavaBeans getter convention) are now processed (minimum support, P-13).
+- `ClientOptions` (fetch mode) gains two new optional fields: `authInterceptor` for injecting auth headers before each request, and `retry` for configuring automatic retry with backoff on server errors (status >= 500). Both are opt-in; existing clients that pass no `ClientOptions` require no changes.
+- Kotlin `value class` (`@JvmInline`) is emitted as a TypeScript branded type with a constructor helper (e.g., `type UserId = string & { readonly __brand: 'UserId' }` + `const UserId = (raw: string): UserId => raw as UserId`).
+- `@JsonProperty`, `@JsonAlias`, and `@JsonInclude(NON_NULL)` annotations on DTO fields are now recognized and reflected in the generated TypeScript interface (field key rename, JSDoc alias comment, optional marking respectively).
+- Per-controller bundle splitting via `spia { splitByController = true }`: emits `_shared.ts`, `<slug>.api.ts` per controller, and `index.ts` barrel.
+- npm package assembly via `spiaPackNpm` Gradle task and `spia { npmPackage { name.set("...") } }` DSL block.
+- Typed `ApiError<T>` class emitted in every SDK; per-endpoint typed error aliases generated from `@ExceptionHandler` / `@ControllerAdvice` methods annotated with `@ResponseStatus`.
+- `@CookieValue` parameters collected into `cookies?: Record<string, string>` and transmitted via a `Cookie: k=v` header.
+- `@MatrixVariable` parameters treated as query-string parameters.
+- `@ModelAttribute` DTO fields flattened into individual query-string parameters.
+- `@RequestAttribute` parameters excluded from the generated TS signature (server-side only); a KSP warn is emitted.
+
+### Changed
+
+- `longType` DSL option now also accepts `"bigint"` in addition to `"number"` and `"string"`.
+- Fetch template `URLSearchParams` query building now skips `undefined` values at runtime (no wire pollution).
+
+### Fixed
+
+- Multi-module `outputPath` conflict now emits a `KSPLogger.warn` when two subprojects write the same SDK file (closes EC-10). A `<outputPath>.spia-lock` sidecar tracks module name + SHA-256 digest + ISO 8601 timestamp per writer.
+- `processor` test coverage raised to 83% line / 52% branch; JaCoCo violation rule enforces ≥50% line / ≥30% branch (closes EC-11).
+
+### Internal
+
+- New parametrized tests cover all `TypeInfo` sealed `when` branches in `TypeScriptGenerator.renderType()`, nullable/generic/map/list/collection type variants in `TypeResolver.resolveByName()`, and all `ParameterKind` variants in `ControllerAnalyzer`.
+
 ## [0.3.0] - 2026-04-27
 
 ### Changed
@@ -67,7 +107,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Known Issues (carried over from v0.1.0 audit)
 - Multi-module `outputPath` conflict — last-write-wins, no warning emitted (EC-10, deferred to v0.3.0).
-- `processor` module test coverage at 0.2% line / 0% branch — JaCoCo report available, dedicated test infrastructure deferred (EC-11, deferred to v0.3.0).
+- `processor` module test coverage at 0.2% line / 0% branch — JaCoCo report available, dedicated test infrastructure deferred (EC-11).
+- EC-11 is now closed: `processor` coverage raised to 83% line / 52% branch; JaCoCo rule enforces ≥50% line / ≥30% branch (see [Unreleased]).
 
 ### Breaking Changes
 See `### Changed` items marked **Breaking**:
@@ -149,7 +190,8 @@ v0.1.0 consumers depending on `interface Any {}` or `field?: T` rendering must u
 - `ProblemDetail` / RFC 9457 error bodies are not emitted.
 - `@JsonProperty` / `@JsonAlias` name overrides are ignored.
 
-[Unreleased]: https://github.com/lyutvs/spia/compare/v0.3.0...HEAD
+[Unreleased]: https://github.com/lyutvs/spia/compare/v0.4.0...HEAD
+[0.4.0]: https://github.com/lyutvs/spia/releases/tag/v0.4.0
 [0.3.0]: https://github.com/lyutvs/spia/releases/tag/v0.3.0
 [0.2.0]: https://github.com/lyutvs/spia/releases/tag/v0.2.0
 [0.1.0]: https://github.com/lyutvs/spia/releases/tag/v0.1.0

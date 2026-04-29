@@ -44,9 +44,12 @@ first. No drift, no runtime spec, no template fight.
 | Kotlin `T?` nullability | `T \| null` preserved | depends on Jackson config | manual |
 | Multi-parameter generics (`Page<T>`, `ApiResponse<D, E>`) | emitted as interfaces | typically flattened | manual |
 | Runtime endpoint exposed | no | `/v3/api-docs` required | — |
-| Bean Validation (`@Valid`, `@Size`, …) | ❌ not in v0.2.0 | ✅ | — |
+| Bean Validation (`@Valid`, `@Size`, …) | ✅ JSDoc tags emitted | ✅ | — |
+| `sealed class` discriminated unions | ✅ (with `@JsonTypeInfo`) | partial | manual |
+| `Pageable` / Spring Data pagination | ✅ expanded inline | ✅ | manual |
+| Reactive / SSE (`Flux<ServerSentEvent<T>>`) | ✅ `AsyncIterable<T>` emitted | partial | manual |
 | Multi-language clients (Swift, Android, …) | ❌ TS only | ✅ | — |
-| Spring Security / auth flows | handled in your axios instance | partial | — |
+| Spring Security / auth flows | handled via `authInterceptor` in `ClientOptions` | partial | — |
 
 ### When SPIA is *not* the right fit
 
@@ -56,10 +59,9 @@ SPIA is deliberately narrow. Reach for `openapi-generator` or
 - **Multi-language clients** — iOS/Android native alongside web.
 - **OpenAPI spec as a deliverable** — for external partners, API gateways,
   or contract-first workflows.
-- **Bean Validation reflected in the generated SDK** — `@Valid`, `@Size`,
-  `@NotNull` carried through to the frontend types.
-- **A Java-only backend** — SPIA is currently Kotlin-only. Java support is
-  on the roadmap.
+- **A Java-only backend with Lombok** — Lombok-generated getters are not visible
+  to KSP at annotation-processing time; Lombok POJOs will be emitted as empty interfaces.
+  Plain Java POJOs (no Lombok) are supported as of v0.4.0.
 
 For everything else — a Kotlin Spring Boot backend talking to a TypeScript
 frontend — SPIA is the shortest path.
@@ -101,7 +103,7 @@ No runtime dependency is installed — the generated SDK uses the platform's
 built-in `fetch`. To switch to an axios-based SDK (e.g., for interceptors or
 custom auth), see [Configuration options](#configuration-options).
 
-## What's supported in v0.2.0
+## What's supported in v0.4.0
 
 | Pattern | Status | Notes |
 |---|:---:|---|
@@ -112,6 +114,10 @@ custom auth), see [Configuration options](#configuration-options).
 | `@RequestParam` | ✅ | `required=false` and `defaultValue` map to optional params + JSDoc `@default` |
 | `@RequestHeader` | ✅ | Typed header parameters; transmitted via axios `headers` config (annotation value used as key) |
 | `@RequestPart` / `MultipartFile` | ✅ | `File` / `File[]` mapped to `File \| Blob`; SDK builds `FormData` |
+| `@ModelAttribute` | ✅ | DTO fields flattened into individual query-string parameters |
+| `@CookieValue` | ✅ | Cookie params collected into `cookies?: Record<string, string>`; SDK builds `Cookie: k=v` header |
+| `@RequestAttribute` | ✅ (excluded) | Server-side only — excluded from the generated TS signature; KSP warn emitted |
+| `@MatrixVariable` | ✅ | Treated as query-string parameter (`;key=value` path segment fallback) |
 | Primitives, `String`, `Boolean`, `Int`, `Long`, `Double`, … | ✅ | `Long` configurable (`number` / `string` / `bigint`) |
 | `List<T>`, `Set<T>`, `Collection<T>` → `T[]` | ✅ | |
 | `Map<K, V>` → `{ [key: K]: V }` | ✅ | |
@@ -125,19 +131,14 @@ custom auth), see [Configuration options](#configuration-options).
 | fetch template | ✅ | Default; `createApi(baseUrl: string)`, `URLSearchParams`-backed query building, `encodeURIComponent` on paths, `if (!res.ok) throw` on every call |
 | axios template | ✅ | Opt-in via `apiClient = "axios"`; `createApi(client: AxiosInstance)` — delegate to the passed instance for interceptors/auth/retries |
 
-## Not supported in v0.2.0 (known exclusions)
+## Known exclusions in v0.4.0
 
-These are intentionally out of scope for the initial release. PRs welcome
-after v0.2.0.
-
-| Pattern | Workaround |
-|---|---|
-| Bean Validation (`@Valid`, `@NotNull`, `@Size`, …) | Use TypeScript-side validation; Spring validates at runtime |
-| Spring Security (`@PreAuthorize`, auth headers) | Handle auth in the axios instance passed to `createApi` |
-| `Pageable` / `Page` (Spring Data) as a first-class type | Define a plain DTO (see the `Page<T>` example below) |
-| Kotlin `sealed class` → TS discriminated union | Flatten to a single nullable-field DTO |
-| `@JsonProperty` / `@JsonAlias` name overrides | Use matching Kotlin property names |
-| `ProblemDetail` / RFC 9457 error bodies | Wrap in your own DTO |
+| Pattern | Status | Workaround |
+|---|---|---|
+| Spring Security (`@PreAuthorize`, auth flows) | out of scope | Use `authInterceptor` in `ClientOptions` to attach auth headers |
+| `ProblemDetail` / RFC 9457 error bodies | out of scope | Wrap in your own DTO; typed `ApiError<T>` covers most cases |
+| Lombok-generated getters (Java) | not supported | Use plain Java POJOs with explicit getters, or Kotlin data classes |
+| Multi-language clients (Swift, Android) | TS only | Use `openapi-generator` for multi-language needs |
 
 ## Example — what the SDK looks like
 
@@ -271,6 +272,151 @@ The `spia { ... }` DSL accepts:
 | `enumStyle` | `"union"` \| `"enum"` | `"union"` | `"union"` emits `type Color = 'RED' \| 'GREEN';` ; `"enum"` emits a TS `enum`. |
 | `longType` | `"number"` \| `"string"` \| `"bigint"` | `"number"` | How Kotlin `Long` is surfaced in TS. |
 
+## Multi-module setup
+
+In a Gradle multi-project build each subproject that exposes REST controllers
+can apply the `spia` plugin independently. The recommended pattern is to give
+each module its own `outputPath` so the generated SDK files stay separate:
+
+```kotlin
+// user-service/build.gradle.kts
+spia {
+    outputPath = "../frontend/src/generated/user-api-sdk.ts"
+}
+
+// order-service/build.gradle.kts
+spia {
+    outputPath = "../frontend/src/generated/order-api-sdk.ts"
+}
+```
+
+If two modules accidentally point to the **same** `outputPath`, SPIA emits a
+KSP warning in the second module's build output and creates a
+`<outputPath>.spia-lock` sidecar file. The lockfile records one line per
+writer in `moduleName:sha256:iso8601` format so you can identify which
+modules are in conflict:
+
+```
+module-a:a1b2c3...:2026-04-27T10:00:00Z
+module-b:d4e5f6...:2026-04-27T10:01:00Z
+```
+
+The warning contains the marker `EC-10` for easy filtering in CI logs.
+No warning is emitted when the same module regenerates its own file (same
+module name, any digest) or when a new module writes content that happens to
+produce the same digest as an existing entry.
+
+## Bundle splitting
+
+By default the processor emits a single `api-sdk.ts` file containing every
+controller. For large APIs this defeats bundler tree-shaking — even if the
+frontend only calls one controller, the unused controllers ship with the
+bundle.
+
+Enable per-controller splitting in your `spia { … }` block:
+
+```kotlin
+spia {
+    outputPath = "src/main/frontend/generated/api-sdk.ts"
+    splitByController = true
+}
+```
+
+When `splitByController = true`, the processor emits the following files in
+the same directory as `outputPath` (so for the example above,
+`src/main/frontend/generated/`):
+
+| File | Contents |
+|---|---|
+| `_shared.ts` | All DTOs, enums, generics, sealed unions, value classes, the `ApiError` / `ApiTimeoutError` classes, and (for `apiClient = "fetch"`) the `ClientOptions` interface. |
+| `<slug>.api.ts` | One file per controller. Exports a `create<Controller>Api(...)` factory and re-exports everything from `_shared`. The slug is the kebab-case form of the controller name with the `Controller` suffix stripped (e.g. `UserController` → `user.api.ts`). |
+| `index.ts` | Barrel module that `export *`'s from `_shared` and every per-controller file. |
+
+For *N* controllers, the processor writes *N + 2* files. Consumers can either
+import from `index.ts` (no tree-shaking) or, to opt into tree-shaking, import
+the per-controller factory directly:
+
+```typescript
+// Tree-shaken — bundler drops every other controller's emitted code.
+import { createUserApi } from './generated/user.api';
+const api = createUserApi({ baseUrl: '/api' });
+```
+
+### Verifying tree-shaking with esbuild
+
+A quick way to confirm a bundler is dropping unused controllers is to run
+esbuild's `--analyze` against a sample entry:
+
+```bash
+echo "import { createUserApi } from './generated/user.api';
+const api = createUserApi({ baseUrl: '/api' });
+console.log(api);" > /tmp/entry.ts
+
+npx esbuild --bundle --tree-shaking=true --analyze /tmp/entry.ts > /dev/null
+```
+
+The analyze output should list `_shared.ts` and `user.api.ts` but NOT any
+other `*.api.ts` file. If you see other controllers in the output, double-
+check that you imported from `./<slug>.api` directly rather than from the
+`index.ts` barrel.
+
+The default for `splitByController` is `false` so existing single-file
+consumers see no change.
+
+## Publishing as npm package
+
+SPIA can assemble the generated TypeScript SDK into an npm-publishable package
+using the `spiaPackNpm` Gradle task. Add an `npmPackage` block inside your
+`spia { }` configuration:
+
+```kotlin
+// build.gradle.kts
+spia {
+    outputPath = "frontend/src/generated/api-sdk.ts"
+    npmPackage {
+        name.set("@your-org/api-sdk")       // required
+        // version defaults to rootProject.version
+        // outputDir defaults to "build/npm"
+    }
+}
+```
+
+Run the task to assemble the package:
+
+```bash
+./gradlew :app:spiaPackNpm
+```
+
+The task produces the following structure under `build/npm/` (by default):
+
+```
+build/npm/
+  package.json      # name, version, main, types, exports, peerDependencies
+  tsconfig.json     # ES2022 + ESNext modules, strict, declaration true
+  src/
+    api-sdk.ts      # generated SDK
+    api-sdk.zod.ts  # generated Zod schemas (if schemaOutput = "zod")
+```
+
+To publish to a registry:
+
+```bash
+cd build/npm
+npm install       # install devDependencies (tsc, etc.) if needed
+npm run build     # tsc compiles src/ → dist/
+npm publish --access public
+```
+
+| `npmPackage` option | Type | Default | Description |
+|---|---|---|---|
+| `name` | `String` | — (required) | npm package name, e.g. `"@org/api-sdk"` |
+| `version` | `String` | root project version | npm package version |
+| `outputDir` | `String` | `"build/npm"` | Output directory (relative to project dir) |
+
+Applying the plugin without an `npmPackage { }` block does not break existing
+builds — `version` and `outputDir` have convention defaults. The task only
+validates the required `name` property when it is actually invoked.
+
 ## Development
 
 Requirements: JDK 21, Node.js 18+, Gradle wrapper (bundled).
@@ -283,7 +429,187 @@ cd app/frontend && npm run integration   # hit the running server via the SDK
 
 See `docs/RELEASING.md` for the Maven Central release procedure and
 `docs/samples/mavenlocal-consumer/` for the dry-run consumer sample.
+See `docs/configuration-cache.md` for Gradle Configuration Cache and
+incremental build compatibility notes.
 
 ## License
 
 Apache 2.0 — see [LICENSE](LICENSE).
+
+## Jackson annotation support
+
+SPIA now recognizes the following Jackson annotations on DTO fields:
+
+| Annotation | Effect on generated SDK |
+|---|---|
+| `@JsonProperty("field_name")` | The TypeScript interface uses `field_name` as the property key instead of the Kotlin property name. |
+| `@JsonAlias("a", "b")` | A JSDoc comment `/** @alias a, b */` is emitted above the field documenting the accepted deserialization aliases. |
+| `@JsonInclude(JsonInclude.Include.NON_NULL)` | A nullable field is marked optional (`field?: T \| null`) rather than required-but-nullable (`field: T \| null`), matching the server's omit-when-null behavior. |
+
+Example:
+
+```kotlin
+data class UserDto(
+    @JsonProperty("user_name")
+    @JsonAlias(value = ["name", "userName"])
+    val userName: String,
+
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    val bio: String? = null,
+)
+```
+
+Generates:
+
+```typescript
+export interface UserDto {
+  /** @alias name, userName */
+  user_name: string;
+  bio?: string | null;
+}
+```
+
+## Kotlin value classes
+
+SPIA emits Kotlin `value class` (annotated with `@JvmInline`) as a TypeScript **branded type**,
+preserving compile-time type safety that would otherwise be lost if the underlying primitive were used directly.
+
+For example:
+
+```kotlin
+@JvmInline
+value class UserId(val raw: String)
+
+data class UserDto(val id: UserId, val name: String)
+```
+
+generates:
+
+```typescript
+export type UserId = string & { readonly __brand: 'UserId' };
+export const UserId = (raw: string): UserId => raw as UserId;
+
+export interface UserDto {
+  id: UserId;
+  name: string;
+}
+```
+
+The branded type ensures that a plain `string` cannot be accidentally passed where a `UserId` is expected.
+The constructor helper (`const UserId = ...`) lets callers wrap a raw value ergonomically: `UserId('abc-123')`.
+
+## Java support (minimum)
+
+SPIA supports Java `@RestController` classes and plain Java POJOs (JavaBeans) as of v0.4.
+
+### What works
+
+- Java `@RestController` / `@RequestMapping` / `@GetMapping` etc. are recognized by their fully-qualified annotation names — the same as Kotlin.
+- Plain Java POJO fields are discovered from public getter methods following the JavaBeans convention (`getXxx()` → `xxx`, `isXxx()` → `xxx`).
+- Nullable detection: a getter annotated with `@org.jetbrains.annotations.Nullable` or `@jakarta.annotation.Nullable` is emitted as `T | null`.
+
+### Known limitations (P-13)
+
+- **Lombok-generated getters are not supported.** KSP processes Java source before Lombok's annotation processor generates accessor methods. As a result, Lombok `@Data` / `@Getter` POJOs will be emitted as empty interfaces. Use plain Java POJOs (field + constructor + explicit getters) with SPIA, or switch to Kotlin data classes.
+- Kotlin-only features (value classes, sealed unions) are not applicable to Java sources.
+
+## Handling errors
+
+SPIA generates a typed `ApiError<T>` class that is thrown whenever a fetch call receives a non-2xx response.
+The generated SDK always includes this base class at the top of the output file:
+
+```typescript
+export class ApiError<T = unknown> extends Error {
+  constructor(public status: number, public data: T, message?: string) { super(message); }
+}
+```
+
+When your Spring backend defines `@ExceptionHandler` methods annotated with `@ResponseStatus`, SPIA
+additionally emits per-endpoint typed error aliases so you can narrow the error type in `catch` blocks:
+
+```typescript
+// Generated alias — present when the endpoint's controller or a @ControllerAdvice declares an error handler
+export type GetItemsError = ApiError<NotFoundError | BadRequestError>;
+```
+
+### Usage example
+
+```typescript
+import { createApi, ApiError } from './api-sdk';
+
+const api = createApi('https://api.example.com');
+
+try {
+  const user = await api.user.getUserProfile(42);
+} catch (err) {
+  if (err instanceof ApiError) {
+    console.error(`HTTP ${err.status}`, err.data);
+  }
+}
+```
+
+### How error types are collected
+
+| Spring annotation | Effect |
+|---|---|
+| `@ControllerAdvice` / `@RestControllerAdvice` | SPIA scans all `@ExceptionHandler` methods and merges their return types as global error responses for every endpoint. |
+| `@ExceptionHandler` inside a `@RestController` | Local error handlers override global ones for that controller's endpoints. |
+| `@ResponseStatus(HttpStatus.X)` on an `@ExceptionHandler` method | Maps the return type to the given HTTP status code. |
+
+## Configuring the client
+
+When using `apiClient = "fetch"` (the default), the generated `createApi` accepts a `ClientOptions` object with two optional fields: `authInterceptor` and `retry`.
+
+### Auth interceptor
+
+`authInterceptor` is a function that receives the `RequestInit` object before each fetch call and returns a (potentially modified) `RequestInit`. This supports synchronous and asynchronous flows such as attaching an `Authorization` header or refreshing a token:
+
+```typescript
+import { createApi } from './generated/api-sdk';
+
+const api = createApi({
+  baseUrl: 'https://api.example.com',
+  authInterceptor: async (request) => ({
+    ...request,
+    headers: {
+      ...(request.headers as Record<string, string>),
+      Authorization: `Bearer ${await getAccessToken()}`,
+    },
+  }),
+});
+```
+
+### Retry
+
+`retry` configures automatic retry for failed requests. By default retry is **off** (`maxAttempts: 0`). When enabled, the SDK retries on server errors (status >= 500) with a fixed backoff:
+
+```typescript
+import { createApi, ApiError } from './generated/api-sdk';
+
+const api = createApi({
+  baseUrl: 'https://api.example.com',
+  retry: {
+    maxAttempts: 3,      // retry up to 3 additional times
+    backoffMs: 200,      // wait 200 ms between attempts
+    retryOn: (status) => status >= 500,  // default — retries 503, not 400
+  },
+});
+```
+
+The retry logic catches `ApiError` specifically (not the base `Error` class) and inspects `error.status` to decide whether to retry:
+
+- Status `503` (or any `>= 500`): retried up to `maxAttempts` times with `backoffMs` delay.
+- Status `400` (or any `< 500`): immediately re-thrown — client errors are not retried.
+
+### Combined example
+
+```typescript
+const api = createApi({
+  baseUrl: 'https://api.example.com',
+  authInterceptor: async (req) => ({
+    ...req,
+    headers: { ...(req.headers as Record<string, string>), Authorization: `Bearer ${token}` },
+  }),
+  retry: { maxAttempts: 2, backoffMs: 300 },
+});
+```

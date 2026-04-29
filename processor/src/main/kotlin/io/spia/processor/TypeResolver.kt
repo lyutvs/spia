@@ -1,12 +1,18 @@
 package io.spia.processor
 
 import com.google.devtools.ksp.symbol.ClassKind
+import com.google.devtools.ksp.symbol.KSAnnotated
 import com.google.devtools.ksp.symbol.KSClassDeclaration
+import com.google.devtools.ksp.symbol.KSFunctionDeclaration
+import com.google.devtools.ksp.symbol.KSPropertyDeclaration
 import com.google.devtools.ksp.symbol.KSType
 import com.google.devtools.ksp.symbol.KSTypeParameter
+import com.google.devtools.ksp.symbol.Modifier
 import com.google.devtools.ksp.symbol.Nullability
+import com.google.devtools.ksp.symbol.Origin
 import io.spia.processor.model.FieldInfo
 import io.spia.processor.model.SdkConfig
+import io.spia.processor.model.SealedSubtype
 import io.spia.processor.model.TypeInfo
 
 class TypeResolver(private val config: SdkConfig) {
@@ -19,10 +25,14 @@ class TypeResolver(private val config: SdkConfig) {
     private val resolvedDtos = mutableMapOf<String, TypeInfo.Dto>()
     private val resolvedEnums = mutableMapOf<String, TypeInfo.Enum>()
     private val resolvedGenerics = mutableMapOf<String, TypeInfo.Generic>()
+    private val resolvedSealedUnions = mutableMapOf<String, TypeInfo.SealedUnion>()
+    private val resolvedValueClasses = mutableMapOf<String, TypeInfo.ValueClass>()
 
     fun allDtos(): Collection<TypeInfo.Dto> = resolvedDtos.values
     fun allEnums(): Collection<TypeInfo.Enum> = resolvedEnums.values
     fun allGenerics(): Collection<TypeInfo.Generic> = resolvedGenerics.values
+    fun allSealedUnions(): Collection<TypeInfo.SealedUnion> = resolvedSealedUnions.values
+    fun allValueClasses(): Collection<TypeInfo.ValueClass> = resolvedValueClasses.values
 
     /**
      * Pass 1: pre-register all custom types reachable from [ksType] so that TS names
@@ -78,9 +88,28 @@ class TypeResolver(private val config: SdkConfig) {
             enumNameMap[fqn] = assignedName
         } else {
             dtoNameMap[fqn] = assignedName
-            // Recurse into field types for transitive DTO discovery.
-            declaration.getAllProperties().forEach { prop ->
-                preRegisterRec(prop.type.resolve(), visited)
+            if (Modifier.SEALED in declaration.modifiers) {
+                // Pre-register all sealed subclasses so their names are resolved before any usage.
+                declaration.getSealedSubclasses().forEach { subDecl ->
+                    subDecl.asStarProjectedType().let { preRegisterRec(it, visited) }
+                }
+            } else if (declaration.origin == Origin.JAVA || declaration.origin == Origin.JAVA_LIB) {
+                // Java POJOs expose fields via getters, not KSPropertyDeclarations.
+                declaration.getAllFunctions()
+                    .filter { fn ->
+                        val name = fn.simpleName.asString()
+                        fn.parameters.isEmpty() && name != "getClass" &&
+                            (name.length > 3 && name.startsWith("get") && name[3].isUpperCase() ||
+                             name.length > 2 && name.startsWith("is") && name[2].isUpperCase())
+                    }
+                    .forEach { fn ->
+                        fn.returnType?.resolve()?.let { preRegisterRec(it, visited) }
+                    }
+            } else {
+                // Recurse into field types for transitive DTO discovery.
+                declaration.getAllProperties().forEach { prop ->
+                    preRegisterRec(prop.type.resolve(), visited)
+                }
             }
         }
     }
@@ -161,6 +190,44 @@ class TypeResolver(private val config: SdkConfig) {
                 if (inner != null) resolve(inner) else TypeInfo.Primitive("any")
             }
 
+            // Mono<T> → unwrap to T (single value — maps to Promise<T> at the TS layer)
+            "reactor.core.publisher.Mono" -> {
+                val inner = ksType.arguments.firstOrNull()?.type?.resolve()
+                if (inner != null) resolve(inner) else TypeInfo.Primitive("any")
+            }
+
+            // produces text/event-stream — Flux<ServerSentEvent<T>> → AsyncIterable<T>
+            // plain Flux<T> → T[] (multi-value array)
+            SpringAnnotations.FLUX -> {
+                val inner = ksType.arguments.firstOrNull()?.type?.resolve()
+                if (inner != null) {
+                    val innerFqn = inner.declaration.qualifiedName?.asString()
+                    if (innerFqn == SpringAnnotations.SERVER_SENT_EVENT) {
+                        val item = inner.arguments.firstOrNull()?.type?.resolve()
+                        if (item != null) TypeInfo.StreamType(resolve(item))
+                        else TypeInfo.StreamType(TypeInfo.Primitive("any"))
+                    } else {
+                        TypeInfo.Array(resolve(inner))
+                    }
+                } else {
+                    TypeInfo.Array(TypeInfo.Primitive("any"))
+                }
+            }
+
+            // Flow<T> → T[] (multi-value coroutine stream)
+            "kotlinx.coroutines.flow.Flow" -> {
+                val inner = ksType.arguments.firstOrNull()?.type?.resolve()
+                if (inner != null) TypeInfo.Array(resolve(inner)) else TypeInfo.Array(TypeInfo.Primitive("any"))
+            }
+
+            SpringAnnotations.SERVER_SENT_EVENT -> {
+                val item = ksType.arguments.firstOrNull()?.type?.resolve()
+                if (item != null) TypeInfo.StreamType(resolve(item))
+                else TypeInfo.StreamType(TypeInfo.Primitive("any"))
+            }
+
+            SpringAnnotations.RESOURCE -> TypeInfo.Primitive("Blob")
+
             else -> resolveCustomType(ksType)
         }
     }
@@ -172,6 +239,51 @@ class TypeResolver(private val config: SdkConfig) {
         }
 
         val fqn = declaration.qualifiedName?.asString() ?: declaration.simpleName.asString()
+
+        // Detect sealed class hierarchy and render as discriminated union.
+        if (Modifier.SEALED in declaration.modifiers) {
+            resolvedSealedUnions[fqn]?.let { return it }
+
+            val tsName = dtoNameMap[fqn] ?: declaration.simpleName.asString()
+            val discriminator = JacksonAnnotationReader.sealedDiscriminator(declaration)
+
+            val subtypes = declaration.getSealedSubclasses().map { subDecl ->
+                val tag = JacksonAnnotationReader.sealedTypeName(subDecl)
+                // Resolve the subclass as a Dto so its fields are also registered.
+                val subFqn = subDecl.qualifiedName?.asString() ?: subDecl.simpleName.asString()
+                val subTsName = dtoNameMap[subFqn] ?: subDecl.simpleName.asString()
+                val subFields = subDecl.getAllProperties().map { prop ->
+                    val propName = prop.simpleName.asString()
+                    FieldInfo(
+                        name = propName,
+                        type = resolve(prop.type.resolve()),
+                        serializedName = JacksonAnnotationReader.renamedTo(prop) ?: propName,
+                        aliases = JacksonAnnotationReader.aliases(prop),
+                        excludeWhenNull = JacksonAnnotationReader.excludeWhenNull(prop),
+                        constraints = extractConstraints(prop),
+                    )
+                }.toList()
+                val dto = TypeInfo.Dto(subTsName, subFields)
+                resolvedDtos[subFqn] = dto
+                SealedSubtype(dto = dto, tag = if (discriminator != null) tag else null)
+            }.toList()
+
+            val sealedUnion = TypeInfo.SealedUnion(name = tsName, subtypes = subtypes, discriminator = discriminator)
+            resolvedSealedUnions[fqn] = sealedUnion
+            return sealedUnion
+        }
+
+        // Detect Kotlin value class (also covers legacy `inline class`).
+        if (Modifier.VALUE in declaration.modifiers || Modifier.INLINE in declaration.modifiers) {
+            resolvedValueClasses[fqn]?.let { return it }
+            val tsName = dtoNameMap[fqn] ?: declaration.simpleName.asString()
+            val underlyingProp = declaration.getAllProperties().firstOrNull()
+            val underlying = if (underlyingProp != null) resolve(underlyingProp.type.resolve())
+                             else TypeInfo.Primitive("unknown")
+            val valueClass = TypeInfo.ValueClass(name = tsName, underlying = underlying)
+            resolvedValueClasses[fqn] = valueClass
+            return valueClass
+        }
 
         if (declaration.classKind == ClassKind.ENUM_CLASS) {
             resolvedEnums[fqn]?.let { return it }
@@ -208,9 +320,14 @@ class TypeResolver(private val config: SdkConfig) {
             resolvedGenerics[fqn] = placeholder
 
             val fields = declaration.getAllProperties().map { prop ->
+                val propName = prop.simpleName.asString()
                 FieldInfo(
-                    name = prop.simpleName.asString(),
+                    name = propName,
                     type = resolve(prop.type.resolve()),
+                    serializedName = JacksonAnnotationReader.renamedTo(prop) ?: propName,
+                    aliases = JacksonAnnotationReader.aliases(prop),
+                    excludeWhenNull = JacksonAnnotationReader.excludeWhenNull(prop),
+                    constraints = extractConstraints(prop),
                 )
             }.toList()
 
@@ -226,12 +343,36 @@ class TypeResolver(private val config: SdkConfig) {
         val placeholder = TypeInfo.Dto(tsName, emptyList())
         resolvedDtos[fqn] = placeholder
 
-        val fields = declaration.getAllProperties().map { prop ->
-            FieldInfo(
-                name = prop.simpleName.asString(),
-                type = resolve(prop.type.resolve()),
-            )
-        }.toList()
+        // For Java classes, KSP does not surface KSPropertyDeclarations — only getters exist.
+        // Fall back to getter-based field extraction when the class origin is JAVA or when
+        // getAllProperties() yields nothing for a Java-origin class.
+        val fields: List<FieldInfo> = if (declaration.origin == Origin.JAVA || declaration.origin == Origin.JAVA_LIB) {
+            val getterFields = javaGetterFields(declaration)
+            if (getterFields.isNotEmpty()) getterFields
+            else declaration.getAllProperties().map { prop ->
+                val propName = prop.simpleName.asString()
+                FieldInfo(
+                    name = propName,
+                    type = resolve(prop.type.resolve()),
+                    serializedName = JacksonAnnotationReader.renamedTo(prop) ?: propName,
+                    aliases = JacksonAnnotationReader.aliases(prop),
+                    excludeWhenNull = JacksonAnnotationReader.excludeWhenNull(prop),
+                    constraints = extractConstraints(prop),
+                )
+            }.toList()
+        } else {
+            declaration.getAllProperties().map { prop ->
+                val propName = prop.simpleName.asString()
+                FieldInfo(
+                    name = propName,
+                    type = resolve(prop.type.resolve()),
+                    serializedName = JacksonAnnotationReader.renamedTo(prop) ?: propName,
+                    aliases = JacksonAnnotationReader.aliases(prop),
+                    excludeWhenNull = JacksonAnnotationReader.excludeWhenNull(prop),
+                    constraints = extractConstraints(prop),
+                )
+            }.toList()
+        }
 
         // Overwrite the placeholder with the real DTO carrying the fields. This is the
         // fix: getOrPut-based predecessors discarded the lambda's return value and
@@ -239,6 +380,91 @@ class TypeResolver(private val config: SdkConfig) {
         val real = TypeInfo.Dto(tsName, fields)
         resolvedDtos[fqn] = real
         return real
+    }
+
+    /**
+     * For Java POJOs, KSP reports no KSPropertyDeclaration entries — fields are not surfaced
+     * as properties. Instead, public getter methods following the JavaBeans naming convention
+     * (`getXxx()` / `isXxx()`) are used as the source of truth for field discovery.
+     *
+     * Nullable detection: a getter is considered nullable when it is annotated with
+     * `@org.jetbrains.annotations.Nullable` or `@jakarta.annotation.Nullable`.
+     */
+    private fun javaGetterFields(declaration: KSClassDeclaration): List<FieldInfo> {
+        val skipNames = setOf("getClass")
+        return declaration.getAllFunctions()
+            .filter { fn ->
+                val name = fn.simpleName.asString()
+                fn.parameters.isEmpty() &&
+                    (name.length > 3 && name.startsWith("get") && name[3].isUpperCase() ||
+                     name.length > 2 && name.startsWith("is") && name[2].isUpperCase()) &&
+                    name !in skipNames
+            }
+            .mapNotNull { fn ->
+                val rawName = fn.simpleName.asString()
+                val fieldName = when {
+                    rawName.startsWith("get") -> rawName.removePrefix("get").replaceFirstChar { it.lowercaseChar() }
+                    rawName.startsWith("is")  -> rawName.removePrefix("is").replaceFirstChar { it.lowercaseChar() }
+                    else -> return@mapNotNull null
+                }
+                val returnKsType = fn.returnType?.resolve() ?: return@mapNotNull null
+                val isNullableAnnotated = isJavaNullableAnnotated(fn)
+                val fieldType = resolve(returnKsType).let {
+                    if (isNullableAnnotated) it.withNullable(true) else it
+                }
+                FieldInfo(
+                    name = fieldName,
+                    type = fieldType,
+                    serializedName = fieldName,
+                    aliases = emptyList(),
+                    excludeWhenNull = false,
+                )
+            }
+            .toList()
+    }
+
+    private fun isJavaNullableAnnotated(fn: KSAnnotated): Boolean {
+        val nullableAnnotations = setOf(
+            "org.jetbrains.annotations.Nullable",
+            "jakarta.annotation.Nullable",
+        )
+        return fn.annotations.any { ann ->
+            ann.annotationType.resolve().declaration.qualifiedName?.asString() in nullableAnnotations
+        }
+    }
+
+    private fun extractConstraints(prop: KSPropertyDeclaration): List<Constraint> {
+        val result = mutableListOf<Constraint>()
+        prop.annotations.forEach { ann ->
+            val fqn = ann.annotationType.resolve().declaration.qualifiedName?.asString()
+            when (fqn) {
+                SpringAnnotations.SIZE -> {
+                    val min = ann.arguments.firstOrNull { it.name?.asString() == "min" }?.value as? Int
+                    val max = ann.arguments.firstOrNull { it.name?.asString() == "max" }?.value as? Int
+                    if (min != null && min != 0) result += Constraint("minLength", min, null)
+                    if (max != null && max != Int.MAX_VALUE) result += Constraint("maxLength", max, null)
+                }
+                SpringAnnotations.MIN -> {
+                    val v = ann.arguments.firstOrNull { it.name?.asString() == "value" }?.value
+                    if (v != null) result += Constraint("minimum", v, null)
+                }
+                SpringAnnotations.MAX -> {
+                    val v = ann.arguments.firstOrNull { it.name?.asString() == "value" }?.value
+                    if (v != null) result += Constraint("maximum", v, null)
+                }
+                SpringAnnotations.PATTERN -> {
+                    val regexp = ann.arguments.firstOrNull { it.name?.asString() == "regexp" }?.value as? String
+                    if (regexp != null) result += Constraint("pattern", regexp, null)
+                }
+                SpringAnnotations.EMAIL -> {
+                    result += Constraint("format", "email", null)
+                }
+                SpringAnnotations.NOT_NULL, SpringAnnotations.NOT_BLANK -> {
+                    // represented by nullable=false — no extra constraint emitted
+                }
+            }
+        }
+        return result
     }
 
     private fun isStandardType(fqn: String): Boolean = when (fqn) {
@@ -264,7 +490,12 @@ class TypeResolver(private val config: SdkConfig) {
         "kotlin.collections.Map", "kotlin.collections.MutableMap",
         "java.util.Map", "java.util.HashMap",
         "org.springframework.http.ResponseEntity",
-        SpringAnnotations.MULTIPART_FILE -> true
+        SpringAnnotations.MULTIPART_FILE,
+        "reactor.core.publisher.Mono",
+        SpringAnnotations.FLUX,
+        SpringAnnotations.SERVER_SENT_EVENT,
+        SpringAnnotations.RESOURCE,
+        "kotlinx.coroutines.flow.Flow" -> true
         else -> false
     }
 }

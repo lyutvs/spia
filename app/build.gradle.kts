@@ -1,4 +1,5 @@
 plugins {
+    java
     kotlin("jvm")
     kotlin("plugin.spring")
     id("com.google.devtools.ksp")
@@ -17,6 +18,12 @@ dependencies {
     // plugin's auto-add detects this and skips injecting the Maven coord.
     // External consumers don't need this line; the plugin adds the processor for them.
     ksp(project(":processor"))
+
+    // Dependency stubs reserved for upcoming tasks — uncomment when the task lands:
+    implementation("org.springframework.boot:spring-boot-starter-validation")
+    compileOnly("org.springframework.boot:spring-boot-starter-webflux")       // task 17 (Streaming/SSE)
+    compileOnly("org.springframework.data:spring-data-commons")               // task 06 (Pageable support)
+    // implementation("com.fasterxml.jackson.module:jackson-module-kotlin")      // task 13 (Jackson customization)
 }
 
 kotlin {
@@ -27,6 +34,18 @@ spia {
     outputPath = "frontend/src/generated/api-sdk.ts"
     enumStyle = "union"
     longType = "number"
+    schemaOutput = "zod"
+    openApiOutput = "3.1"
+    clientOptions {
+        baseUrl = "/api"
+    }
+    // Bundle splitting (task 18): when enabled (set splitByController to true),
+    // the processor emits one `<slug>.api.ts` file per controller plus an
+    // `index.ts` barrel and a `_shared.ts` module. Bundlers can then
+    // tree-shake unused controllers.
+    npmPackage {
+        name.set("@spia-sandbox/api-sdk")
+    }
 }
 
 /* ───────────── Frontend typecheck gate ─────────────
