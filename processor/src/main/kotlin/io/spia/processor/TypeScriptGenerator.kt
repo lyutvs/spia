@@ -639,20 +639,6 @@ class TypeScriptGenerator(private val config: SdkConfig, private val logger: KSP
                 }
             }
 
-        // All header-like params: explicit @RequestHeader + cookie header built from @CookieValue params
-        val allHeaderParams: List<ParameterInfo> = headerParams +
-            if (cookieParams.isNotEmpty()) {
-                listOf(
-                    ParameterInfo(
-                        name = "cookies",
-                        type = TypeInfo.Primitive("Record<string, string>"),
-                        kind = ParameterKind.HEADER,
-                        required = false,
-                        headerName = "__cookies__",
-                    )
-                )
-            } else emptyList()
-
         when (config.apiClient) {
             ApiClient.AXIOS -> {
                 if (multipartParams.isNotEmpty()) {
