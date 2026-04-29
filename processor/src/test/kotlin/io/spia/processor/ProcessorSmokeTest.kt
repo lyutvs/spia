@@ -600,7 +600,7 @@ class ProcessorSmokeTest {
         assertTrue(sdk.contains("fetch("), "fetch() call missing")
         assertTrue(sdk.contains("JSON.stringify"), "JSON.stringify for POST body missing")
         assertTrue(sdk.contains("res.json()"), "res.json() call missing")
-        assertTrue(sdk.contains("if (!res.ok) throw"), "res.ok guard missing")
+        assertTrue(sdk.contains("if (!res.ok)"), "res.ok guard missing")
         assertTrue(sdk.contains("\${res.url}"), "error message must use resolved \${res.url}, not the route template")
 
         // has-optional @RequestParam branch: URLSearchParams prelude + conditional ?qs fragment.
@@ -861,6 +861,56 @@ class ProcessorSmokeTest {
         val sdk = File(outputPath).readText()
 
         // AC-3: non-2xx must throw ApiError, not plain Error
+        assertTrue(sdk.contains("throw new ApiError"), "throw new ApiError missing in fetch template")
+        assertFalse(sdk.contains("throw new Error("), "throw new Error() should have been replaced by throw new ApiError")
+    }
+
+    @Test
+    @org.junit.jupiter.api.DisplayName("EC-11b fetch non-JSON error body preserves res.status as ApiError")
+    fun `EC-11b fetch non-JSON error body preserves resStatus as ApiError`(@TempDir tempDir: File) {
+        val outputPath = File(tempDir, "generated/api-sdk.ts").absolutePath
+
+        val source = SourceFile.kotlin(
+            "NonJsonErrorController.kt",
+            """
+            package test
+
+            import org.springframework.web.bind.annotation.RestController
+            import org.springframework.web.bind.annotation.GetMapping
+            import org.springframework.web.bind.annotation.PathVariable
+
+            data class Item(val id: Long, val name: String)
+
+            @RestController
+            class NonJsonErrorController {
+                @GetMapping("/items/{id}")
+                fun getItem(@PathVariable id: Long): Item = Item(id, "stub")
+            }
+            """.trimIndent()
+        )
+
+        val compilation = KotlinCompilation().apply {
+            sources = listOf(source, coreSpringStubs())
+            inheritClassPath = true
+            messageOutputStream = System.out
+            configureKsp {
+                symbolProcessorProviders.add(SpiaProcessorProvider())
+                processorOptions["spia.outputPath"] = outputPath
+                processorOptions["spia.apiClient"] = "fetch"
+                incremental = false
+            }
+        }
+
+        val result = compilation.compile()
+        assertEquals(KotlinCompilation.ExitCode.OK, result.exitCode, "compilation should succeed")
+
+        val sdk = File(outputPath).readText()
+
+        assertTrue(sdk.contains("let __errBody: unknown = null;"), "errBody declaration missing")
+        assertTrue(sdk.contains("__errBody = await res.json();"), "res.json() assignment missing")
+        assertTrue(sdk.contains("__errBody = await res.text();"), "res.text() fallback missing")
+        assertTrue(sdk.contains("throw new ApiError(res.status, __errBody,"), "ApiError with __errBody missing")
+        assertTrue(sdk.contains("clearTimeout(__timeoutId);"), "clearTimeout line must not be displaced")
         assertTrue(sdk.contains("throw new ApiError"), "throw new ApiError missing in fetch template")
         assertFalse(sdk.contains("throw new Error("), "throw new Error() should have been replaced by throw new ApiError")
     }

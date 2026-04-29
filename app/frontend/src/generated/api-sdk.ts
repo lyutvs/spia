@@ -260,7 +260,13 @@ export function createApi(options?: ClientOptions) {
           if (options?.authInterceptor) __req = await options.authInterceptor(__req);
           try {
             const res = await fetch(`${_baseUrl}/api/ec-auth-retry/protected`, __req);
-            if (!res.ok) throw new ApiError(res.status, await res.json(), `SPIA GET ${res.url} failed: ${res.status} ${res.statusText}`);
+            if (!res.ok) {
+              let __errBody: unknown = null;
+              try { __errBody = await res.json(); } catch (_e1) {
+                try { __errBody = await res.text(); } catch (_e2) { __errBody = null; }
+              }
+              throw new ApiError(res.status, __errBody, `SPIA GET ${res.url} failed: ${res.status} ${res.statusText}`);
+            }
             clearTimeout(__timeoutId);
             return res.json();
           } catch (error) {
@@ -301,7 +307,13 @@ export function createApi(options?: ClientOptions) {
           if (options?.authInterceptor) __req = await options.authInterceptor(__req);
           try {
             const res = await fetch(`${_baseUrl}/api/ec-auth-retry/always-ok`, __req);
-            if (!res.ok) throw new ApiError(res.status, await res.json(), `SPIA GET ${res.url} failed: ${res.status} ${res.statusText}`);
+            if (!res.ok) {
+              let __errBody: unknown = null;
+              try { __errBody = await res.json(); } catch (_e1) {
+                try { __errBody = await res.text(); } catch (_e2) { __errBody = null; }
+              }
+              throw new ApiError(res.status, __errBody, `SPIA GET ${res.url} failed: ${res.status} ${res.statusText}`);
+            }
             clearTimeout(__timeoutId);
             return res.json();
           } catch (error) {
@@ -341,7 +353,13 @@ export function createApi(options?: ClientOptions) {
           if (options?.authInterceptor) __req = await options.authInterceptor(__req);
           try {
             const res = await fetch(`${_baseUrl}/api/ec-jackson/users`, __req);
-            if (!res.ok) throw new ApiError(res.status, await res.json(), `SPIA POST ${res.url} failed: ${res.status} ${res.statusText}`);
+            if (!res.ok) {
+              let __errBody: unknown = null;
+              try { __errBody = await res.json(); } catch (_e1) {
+                try { __errBody = await res.text(); } catch (_e2) { __errBody = null; }
+              }
+              throw new ApiError(res.status, __errBody, `SPIA POST ${res.url} failed: ${res.status} ${res.statusText}`);
+            }
             clearTimeout(__timeoutId);
             return res.json();
           } catch (error) {
@@ -379,7 +397,13 @@ export function createApi(options?: ClientOptions) {
           if (options?.authInterceptor) __req = await options.authInterceptor(__req);
           try {
             const res = await fetch(`${_baseUrl}/api/ec-jackson/users/sample`, __req);
-            if (!res.ok) throw new ApiError(res.status, await res.json(), `SPIA GET ${res.url} failed: ${res.status} ${res.statusText}`);
+            if (!res.ok) {
+              let __errBody: unknown = null;
+              try { __errBody = await res.json(); } catch (_e1) {
+                try { __errBody = await res.text(); } catch (_e2) { __errBody = null; }
+              }
+              throw new ApiError(res.status, __errBody, `SPIA GET ${res.url} failed: ${res.status} ${res.statusText}`);
+            }
             clearTimeout(__timeoutId);
             return res.json();
           } catch (error) {
@@ -419,7 +443,13 @@ export function createApi(options?: ClientOptions) {
           if (options?.authInterceptor) __req = await options.authInterceptor(__req);
           try {
             const res = await fetch(`${_baseUrl}/api/ec-java/${encodeURIComponent(String(name))}`, __req);
-            if (!res.ok) throw new ApiError(res.status, await res.json(), `SPIA GET ${res.url} failed: ${res.status} ${res.statusText}`);
+            if (!res.ok) {
+              let __errBody: unknown = null;
+              try { __errBody = await res.json(); } catch (_e1) {
+                try { __errBody = await res.text(); } catch (_e2) { __errBody = null; }
+              }
+              throw new ApiError(res.status, __errBody, `SPIA GET ${res.url} failed: ${res.status} ${res.statusText}`);
+            }
             clearTimeout(__timeoutId);
             return res.json();
           } catch (error) {
@@ -457,7 +487,13 @@ export function createApi(options?: ClientOptions) {
           if (options?.authInterceptor) __req = await options.authInterceptor(__req);
           try {
             const res = await fetch(`${_baseUrl}/api/ec-java`, __req);
-            if (!res.ok) throw new ApiError(res.status, await res.json(), `SPIA POST ${res.url} failed: ${res.status} ${res.statusText}`);
+            if (!res.ok) {
+              let __errBody: unknown = null;
+              try { __errBody = await res.json(); } catch (_e1) {
+                try { __errBody = await res.text(); } catch (_e2) { __errBody = null; }
+              }
+              throw new ApiError(res.status, __errBody, `SPIA POST ${res.url} failed: ${res.status} ${res.statusText}`);
+            }
             clearTimeout(__timeoutId);
             return res.json();
           } catch (error) {
@@ -502,7 +538,13 @@ export function createApi(options?: ClientOptions) {
           if (options?.authInterceptor) __req = await options.authInterceptor(__req);
           try {
             const res = await fetch(`${_baseUrl}/api/ec/pageable${qs ? `?${qs}` : ''}`, __req);
-            if (!res.ok) throw new ApiError(res.status, await res.json(), `SPIA GET ${res.url} failed: ${res.status} ${res.statusText}`);
+            if (!res.ok) {
+              let __errBody: unknown = null;
+              try { __errBody = await res.json(); } catch (_e1) {
+                try { __errBody = await res.text(); } catch (_e2) { __errBody = null; }
+              }
+              throw new ApiError(res.status, __errBody, `SPIA GET ${res.url} failed: ${res.status} ${res.statusText}`);
+            }
             clearTimeout(__timeoutId);
             return res.json();
           } catch (error) {
@@ -545,7 +587,13 @@ export function createApi(options?: ClientOptions) {
           if (options?.authInterceptor) __req = await options.authInterceptor(__req);
           try {
             const res = await fetch(`${_baseUrl}/api/ec-param-kinds2/search?keyword=${encodeURIComponent(String(keyword))}&page=${encodeURIComponent(String(page))}&size=${encodeURIComponent(String(size))}`, __req);
-            if (!res.ok) throw new ApiError(res.status, await res.json(), `SPIA GET ${res.url} failed: ${res.status} ${res.statusText}`);
+            if (!res.ok) {
+              let __errBody: unknown = null;
+              try { __errBody = await res.json(); } catch (_e1) {
+                try { __errBody = await res.text(); } catch (_e2) { __errBody = null; }
+              }
+              throw new ApiError(res.status, __errBody, `SPIA GET ${res.url} failed: ${res.status} ${res.statusText}`);
+            }
             clearTimeout(__timeoutId);
             return res.json();
           } catch (error) {
@@ -586,7 +634,13 @@ export function createApi(options?: ClientOptions) {
           if (options?.authInterceptor) __req = await options.authInterceptor(__req);
           try {
             const res = await fetch(`${_baseUrl}/api/ec-param-kinds2/whoami`, __req);
-            if (!res.ok) throw new ApiError(res.status, await res.json(), `SPIA GET ${res.url} failed: ${res.status} ${res.statusText}`);
+            if (!res.ok) {
+              let __errBody: unknown = null;
+              try { __errBody = await res.json(); } catch (_e1) {
+                try { __errBody = await res.text(); } catch (_e2) { __errBody = null; }
+              }
+              throw new ApiError(res.status, __errBody, `SPIA GET ${res.url} failed: ${res.status} ${res.statusText}`);
+            }
             clearTimeout(__timeoutId);
             return res.json();
           } catch (error) {
@@ -627,7 +681,13 @@ export function createApi(options?: ClientOptions) {
           if (options?.authInterceptor) __req = await options.authInterceptor(__req);
           try {
             const res = await fetch(`${_baseUrl}/api/ec-param-kinds2/request-attr`, __req);
-            if (!res.ok) throw new ApiError(res.status, await res.json(), `SPIA GET ${res.url} failed: ${res.status} ${res.statusText}`);
+            if (!res.ok) {
+              let __errBody: unknown = null;
+              try { __errBody = await res.json(); } catch (_e1) {
+                try { __errBody = await res.text(); } catch (_e2) { __errBody = null; }
+              }
+              throw new ApiError(res.status, __errBody, `SPIA GET ${res.url} failed: ${res.status} ${res.statusText}`);
+            }
             clearTimeout(__timeoutId);
             return res.json();
           } catch (error) {
@@ -668,7 +728,13 @@ export function createApi(options?: ClientOptions) {
           if (options?.authInterceptor) __req = await options.authInterceptor(__req);
           try {
             const res = await fetch(`${_baseUrl}/api/ec-param-kinds2/items/${encodeURIComponent(String(id))}?color=${encodeURIComponent(String(color))}`, __req);
-            if (!res.ok) throw new ApiError(res.status, await res.json(), `SPIA GET ${res.url} failed: ${res.status} ${res.statusText}`);
+            if (!res.ok) {
+              let __errBody: unknown = null;
+              try { __errBody = await res.json(); } catch (_e1) {
+                try { __errBody = await res.text(); } catch (_e2) { __errBody = null; }
+              }
+              throw new ApiError(res.status, __errBody, `SPIA GET ${res.url} failed: ${res.status} ${res.statusText}`);
+            }
             clearTimeout(__timeoutId);
             return res.json();
           } catch (error) {
@@ -708,7 +774,13 @@ export function createApi(options?: ClientOptions) {
           if (options?.authInterceptor) __req = await options.authInterceptor(__req);
           try {
             const res = await fetch(`${_baseUrl}/api/ec-reactive/mono`, __req);
-            if (!res.ok) throw new ApiError(res.status, await res.json(), `SPIA GET ${res.url} failed: ${res.status} ${res.statusText}`);
+            if (!res.ok) {
+              let __errBody: unknown = null;
+              try { __errBody = await res.json(); } catch (_e1) {
+                try { __errBody = await res.text(); } catch (_e2) { __errBody = null; }
+              }
+              throw new ApiError(res.status, __errBody, `SPIA GET ${res.url} failed: ${res.status} ${res.statusText}`);
+            }
             clearTimeout(__timeoutId);
             return res.json();
           } catch (error) {
@@ -746,7 +818,13 @@ export function createApi(options?: ClientOptions) {
           if (options?.authInterceptor) __req = await options.authInterceptor(__req);
           try {
             const res = await fetch(`${_baseUrl}/api/ec-reactive/flux`, __req);
-            if (!res.ok) throw new ApiError(res.status, await res.json(), `SPIA GET ${res.url} failed: ${res.status} ${res.statusText}`);
+            if (!res.ok) {
+              let __errBody: unknown = null;
+              try { __errBody = await res.json(); } catch (_e1) {
+                try { __errBody = await res.text(); } catch (_e2) { __errBody = null; }
+              }
+              throw new ApiError(res.status, __errBody, `SPIA GET ${res.url} failed: ${res.status} ${res.statusText}`);
+            }
             clearTimeout(__timeoutId);
             return res.json();
           } catch (error) {
@@ -784,7 +862,13 @@ export function createApi(options?: ClientOptions) {
           if (options?.authInterceptor) __req = await options.authInterceptor(__req);
           try {
             const res = await fetch(`${_baseUrl}/api/ec-reactive/suspend`, __req);
-            if (!res.ok) throw new ApiError(res.status, await res.json(), `SPIA GET ${res.url} failed: ${res.status} ${res.statusText}`);
+            if (!res.ok) {
+              let __errBody: unknown = null;
+              try { __errBody = await res.json(); } catch (_e1) {
+                try { __errBody = await res.text(); } catch (_e2) { __errBody = null; }
+              }
+              throw new ApiError(res.status, __errBody, `SPIA GET ${res.url} failed: ${res.status} ${res.statusText}`);
+            }
             clearTimeout(__timeoutId);
             return res.json();
           } catch (error) {
@@ -824,7 +908,13 @@ export function createApi(options?: ClientOptions) {
           if (options?.authInterceptor) __req = await options.authInterceptor(__req);
           try {
             const res = await fetch(`${_baseUrl}/api/ec-sealed/shape/circle`, __req);
-            if (!res.ok) throw new ApiError(res.status, await res.json(), `SPIA GET ${res.url} failed: ${res.status} ${res.statusText}`);
+            if (!res.ok) {
+              let __errBody: unknown = null;
+              try { __errBody = await res.json(); } catch (_e1) {
+                try { __errBody = await res.text(); } catch (_e2) { __errBody = null; }
+              }
+              throw new ApiError(res.status, __errBody, `SPIA GET ${res.url} failed: ${res.status} ${res.statusText}`);
+            }
             clearTimeout(__timeoutId);
             return res.json();
           } catch (error) {
@@ -862,7 +952,13 @@ export function createApi(options?: ClientOptions) {
           if (options?.authInterceptor) __req = await options.authInterceptor(__req);
           try {
             const res = await fetch(`${_baseUrl}/api/ec-sealed/shape/square`, __req);
-            if (!res.ok) throw new ApiError(res.status, await res.json(), `SPIA GET ${res.url} failed: ${res.status} ${res.statusText}`);
+            if (!res.ok) {
+              let __errBody: unknown = null;
+              try { __errBody = await res.json(); } catch (_e1) {
+                try { __errBody = await res.text(); } catch (_e2) { __errBody = null; }
+              }
+              throw new ApiError(res.status, __errBody, `SPIA GET ${res.url} failed: ${res.status} ${res.statusText}`);
+            }
             clearTimeout(__timeoutId);
             return res.json();
           } catch (error) {
@@ -900,7 +996,13 @@ export function createApi(options?: ClientOptions) {
           if (options?.authInterceptor) __req = await options.authInterceptor(__req);
           try {
             const res = await fetch(`${_baseUrl}/api/ec-sealed/shape/triangle`, __req);
-            if (!res.ok) throw new ApiError(res.status, await res.json(), `SPIA GET ${res.url} failed: ${res.status} ${res.statusText}`);
+            if (!res.ok) {
+              let __errBody: unknown = null;
+              try { __errBody = await res.json(); } catch (_e1) {
+                try { __errBody = await res.text(); } catch (_e2) { __errBody = null; }
+              }
+              throw new ApiError(res.status, __errBody, `SPIA GET ${res.url} failed: ${res.status} ${res.statusText}`);
+            }
             clearTimeout(__timeoutId);
             return res.json();
           } catch (error) {
@@ -940,7 +1042,13 @@ export function createApi(options?: ClientOptions) {
           if (options?.authInterceptor) __req = await options.authInterceptor(__req);
           try {
             const res = await fetch(`${_baseUrl}/api/ec-streaming/ticks`, __req);
-            if (!res.ok) throw new ApiError(res.status, await res.json(), `SPIA GET ${res.url} failed: ${res.status} ${res.statusText}`);
+            if (!res.ok) {
+              let __errBody: unknown = null;
+              try { __errBody = await res.json(); } catch (_e1) {
+                try { __errBody = await res.text(); } catch (_e2) { __errBody = null; }
+              }
+              throw new ApiError(res.status, __errBody, `SPIA GET ${res.url} failed: ${res.status} ${res.statusText}`);
+            }
             clearTimeout(__timeoutId);
             return res.json();
           } catch (error) {
@@ -978,7 +1086,13 @@ export function createApi(options?: ClientOptions) {
           if (options?.authInterceptor) __req = await options.authInterceptor(__req);
           try {
             const res = await fetch(`${_baseUrl}/api/ec-streaming/file/${encodeURIComponent(String(name))}`, __req);
-            if (!res.ok) throw new ApiError(res.status, await res.json(), `SPIA GET ${res.url} failed: ${res.status} ${res.statusText}`);
+            if (!res.ok) {
+              let __errBody: unknown = null;
+              try { __errBody = await res.json(); } catch (_e1) {
+                try { __errBody = await res.text(); } catch (_e2) { __errBody = null; }
+              }
+              throw new ApiError(res.status, __errBody, `SPIA GET ${res.url} failed: ${res.status} ${res.statusText}`);
+            }
             clearTimeout(__timeoutId);
             return res.json();
           } catch (error) {
@@ -1021,7 +1135,13 @@ export function createApi(options?: ClientOptions) {
           if (options?.authInterceptor) __req = await options.authInterceptor(__req);
           try {
             const res = await fetch(`${_baseUrl}/api/ec-timeout/slow`, __req);
-            if (!res.ok) throw new ApiError(res.status, await res.json(), `SPIA GET ${res.url} failed: ${res.status} ${res.statusText}`);
+            if (!res.ok) {
+              let __errBody: unknown = null;
+              try { __errBody = await res.json(); } catch (_e1) {
+                try { __errBody = await res.text(); } catch (_e2) { __errBody = null; }
+              }
+              throw new ApiError(res.status, __errBody, `SPIA GET ${res.url} failed: ${res.status} ${res.statusText}`);
+            }
             clearTimeout(__timeoutId);
             return res.json();
           } catch (error) {
@@ -1062,7 +1182,13 @@ export function createApi(options?: ClientOptions) {
           if (options?.authInterceptor) __req = await options.authInterceptor(__req);
           try {
             const res = await fetch(`${_baseUrl}/api/ec-timeout/fast`, __req);
-            if (!res.ok) throw new ApiError(res.status, await res.json(), `SPIA GET ${res.url} failed: ${res.status} ${res.statusText}`);
+            if (!res.ok) {
+              let __errBody: unknown = null;
+              try { __errBody = await res.json(); } catch (_e1) {
+                try { __errBody = await res.text(); } catch (_e2) { __errBody = null; }
+              }
+              throw new ApiError(res.status, __errBody, `SPIA GET ${res.url} failed: ${res.status} ${res.statusText}`);
+            }
             clearTimeout(__timeoutId);
             return res.json();
           } catch (error) {
@@ -1102,7 +1228,13 @@ export function createApi(options?: ClientOptions) {
           if (options?.authInterceptor) __req = await options.authInterceptor(__req);
           try {
             const res = await fetch(`${_baseUrl}/ec-validation/submit`, __req);
-            if (!res.ok) throw new ApiError(res.status, await res.json(), `SPIA POST ${res.url} failed: ${res.status} ${res.statusText}`);
+            if (!res.ok) {
+              let __errBody: unknown = null;
+              try { __errBody = await res.json(); } catch (_e1) {
+                try { __errBody = await res.text(); } catch (_e2) { __errBody = null; }
+              }
+              throw new ApiError(res.status, __errBody, `SPIA POST ${res.url} failed: ${res.status} ${res.statusText}`);
+            }
             clearTimeout(__timeoutId);
             return res.json();
           } catch (error) {
@@ -1140,7 +1272,13 @@ export function createApi(options?: ClientOptions) {
           if (options?.authInterceptor) __req = await options.authInterceptor(__req);
           try {
             const res = await fetch(`${_baseUrl}/ec-validation/wrapped`, __req);
-            if (!res.ok) throw new ApiError(res.status, await res.json(), `SPIA GET ${res.url} failed: ${res.status} ${res.statusText}`);
+            if (!res.ok) {
+              let __errBody: unknown = null;
+              try { __errBody = await res.json(); } catch (_e1) {
+                try { __errBody = await res.text(); } catch (_e2) { __errBody = null; }
+              }
+              throw new ApiError(res.status, __errBody, `SPIA GET ${res.url} failed: ${res.status} ${res.statusText}`);
+            }
             clearTimeout(__timeoutId);
             return res.json();
           } catch (error) {
@@ -1180,7 +1318,13 @@ export function createApi(options?: ClientOptions) {
           if (options?.authInterceptor) __req = await options.authInterceptor(__req);
           try {
             const res = await fetch(`${_baseUrl}/api/ec-value-class/users/${encodeURIComponent(String(id))}`, __req);
-            if (!res.ok) throw new ApiError(res.status, await res.json(), `SPIA GET ${res.url} failed: ${res.status} ${res.statusText}`);
+            if (!res.ok) {
+              let __errBody: unknown = null;
+              try { __errBody = await res.json(); } catch (_e1) {
+                try { __errBody = await res.text(); } catch (_e2) { __errBody = null; }
+              }
+              throw new ApiError(res.status, __errBody, `SPIA GET ${res.url} failed: ${res.status} ${res.statusText}`);
+            }
             clearTimeout(__timeoutId);
             return res.json();
           } catch (error) {
@@ -1218,7 +1362,13 @@ export function createApi(options?: ClientOptions) {
           if (options?.authInterceptor) __req = await options.authInterceptor(__req);
           try {
             const res = await fetch(`${_baseUrl}/api/ec-value-class/users`, __req);
-            if (!res.ok) throw new ApiError(res.status, await res.json(), `SPIA POST ${res.url} failed: ${res.status} ${res.statusText}`);
+            if (!res.ok) {
+              let __errBody: unknown = null;
+              try { __errBody = await res.json(); } catch (_e1) {
+                try { __errBody = await res.text(); } catch (_e2) { __errBody = null; }
+              }
+              throw new ApiError(res.status, __errBody, `SPIA POST ${res.url} failed: ${res.status} ${res.statusText}`);
+            }
             clearTimeout(__timeoutId);
             return res.json();
           } catch (error) {
@@ -1256,7 +1406,13 @@ export function createApi(options?: ClientOptions) {
           if (options?.authInterceptor) __req = await options.authInterceptor(__req);
           try {
             const res = await fetch(`${_baseUrl}/api/ec-value-class/orders/${encodeURIComponent(String(id))}`, __req);
-            if (!res.ok) throw new ApiError(res.status, await res.json(), `SPIA GET ${res.url} failed: ${res.status} ${res.statusText}`);
+            if (!res.ok) {
+              let __errBody: unknown = null;
+              try { __errBody = await res.json(); } catch (_e1) {
+                try { __errBody = await res.text(); } catch (_e2) { __errBody = null; }
+              }
+              throw new ApiError(res.status, __errBody, `SPIA GET ${res.url} failed: ${res.status} ${res.statusText}`);
+            }
             clearTimeout(__timeoutId);
             return res.json();
           } catch (error) {
@@ -1299,7 +1455,13 @@ export function createApi(options?: ClientOptions) {
           if (options?.authInterceptor) __req = await options.authInterceptor(__req);
           try {
             const res = await fetch(`${_baseUrl}/api/users/${encodeURIComponent(String(id))}`, __req);
-            if (!res.ok) throw new ApiError(res.status, await res.json(), `SPIA GET ${res.url} failed: ${res.status} ${res.statusText}`);
+            if (!res.ok) {
+              let __errBody: unknown = null;
+              try { __errBody = await res.json(); } catch (_e1) {
+                try { __errBody = await res.text(); } catch (_e2) { __errBody = null; }
+              }
+              throw new ApiError(res.status, __errBody, `SPIA GET ${res.url} failed: ${res.status} ${res.statusText}`);
+            }
             clearTimeout(__timeoutId);
             return res.json();
           } catch (error) {
@@ -1340,7 +1502,13 @@ export function createApi(options?: ClientOptions) {
           if (options?.authInterceptor) __req = await options.authInterceptor(__req);
           try {
             const res = await fetch(`${_baseUrl}/api/users`, __req);
-            if (!res.ok) throw new ApiError(res.status, await res.json(), `SPIA POST ${res.url} failed: ${res.status} ${res.statusText}`);
+            if (!res.ok) {
+              let __errBody: unknown = null;
+              try { __errBody = await res.json(); } catch (_e1) {
+                try { __errBody = await res.text(); } catch (_e2) { __errBody = null; }
+              }
+              throw new ApiError(res.status, __errBody, `SPIA POST ${res.url} failed: ${res.status} ${res.statusText}`);
+            }
             clearTimeout(__timeoutId);
             return res.json();
           } catch (error) {
@@ -1381,7 +1549,13 @@ export function createApi(options?: ClientOptions) {
           if (options?.authInterceptor) __req = await options.authInterceptor(__req);
           try {
             const res = await fetch(`${_baseUrl}/api/users/${encodeURIComponent(String(id))}`, __req);
-            if (!res.ok) throw new ApiError(res.status, await res.json(), `SPIA PUT ${res.url} failed: ${res.status} ${res.statusText}`);
+            if (!res.ok) {
+              let __errBody: unknown = null;
+              try { __errBody = await res.json(); } catch (_e1) {
+                try { __errBody = await res.text(); } catch (_e2) { __errBody = null; }
+              }
+              throw new ApiError(res.status, __errBody, `SPIA PUT ${res.url} failed: ${res.status} ${res.statusText}`);
+            }
             clearTimeout(__timeoutId);
             return res.json();
           } catch (error) {
@@ -1422,7 +1596,13 @@ export function createApi(options?: ClientOptions) {
           if (options?.authInterceptor) __req = await options.authInterceptor(__req);
           try {
             const res = await fetch(`${_baseUrl}/api/users/${encodeURIComponent(String(id))}`, __req);
-            if (!res.ok) throw new ApiError(res.status, await res.json(), `SPIA DELETE ${res.url} failed: ${res.status} ${res.statusText}`);
+            if (!res.ok) {
+              let __errBody: unknown = null;
+              try { __errBody = await res.json(); } catch (_e1) {
+                try { __errBody = await res.text(); } catch (_e2) { __errBody = null; }
+              }
+              throw new ApiError(res.status, __errBody, `SPIA DELETE ${res.url} failed: ${res.status} ${res.statusText}`);
+            }
             clearTimeout(__timeoutId);
             return;
           } catch (error) {
@@ -1470,7 +1650,13 @@ export function createApi(options?: ClientOptions) {
           if (options?.authInterceptor) __req = await options.authInterceptor(__req);
           try {
             const res = await fetch(`${_baseUrl}/api/users/list${qs ? `?${qs}` : ''}`, __req);
-            if (!res.ok) throw new ApiError(res.status, await res.json(), `SPIA GET ${res.url} failed: ${res.status} ${res.statusText}`);
+            if (!res.ok) {
+              let __errBody: unknown = null;
+              try { __errBody = await res.json(); } catch (_e1) {
+                try { __errBody = await res.text(); } catch (_e2) { __errBody = null; }
+              }
+              throw new ApiError(res.status, __errBody, `SPIA GET ${res.url} failed: ${res.status} ${res.statusText}`);
+            }
             clearTimeout(__timeoutId);
             return res.json();
           } catch (error) {
@@ -1511,7 +1697,13 @@ export function createApi(options?: ClientOptions) {
           if (options?.authInterceptor) __req = await options.authInterceptor(__req);
           try {
             const res = await fetch(`${_baseUrl}/api/users/${encodeURIComponent(String(id))}/wrapped`, __req);
-            if (!res.ok) throw new ApiError(res.status, await res.json(), `SPIA GET ${res.url} failed: ${res.status} ${res.statusText}`);
+            if (!res.ok) {
+              let __errBody: unknown = null;
+              try { __errBody = await res.json(); } catch (_e1) {
+                try { __errBody = await res.text(); } catch (_e2) { __errBody = null; }
+              }
+              throw new ApiError(res.status, __errBody, `SPIA GET ${res.url} failed: ${res.status} ${res.statusText}`);
+            }
             clearTimeout(__timeoutId);
             return res.json();
           } catch (error) {
