@@ -70,4 +70,10 @@ class FixturesController {
         io.spia.e2e.dto.edge.WithDot(b = "d"),
         io.spia.e2e.dto.edge.WithLeadingDigit(c = "1"),
     )
+
+    @GetMapping("/animals/holder/fixtures")
+    fun animalHolderFixtures(): List<io.spia.e2e.dto.animals.AnimalHolder> = listOf(
+        io.spia.e2e.dto.animals.AnimalHolder(pet = Dog(name = "Rex", breed = "Husky"), label = "with-pet"),
+        io.spia.e2e.dto.animals.AnimalHolder(pet = null, label = "without-pet"),
+    )
 }

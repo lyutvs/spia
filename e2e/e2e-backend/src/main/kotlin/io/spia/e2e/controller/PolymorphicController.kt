@@ -23,4 +23,7 @@ class PolymorphicController {
 
     @PostMapping("/edge")
     fun echoEdge(@RequestBody v: io.spia.e2e.dto.edge.EdgeNamed): io.spia.e2e.dto.edge.EdgeNamed = v
+
+    @PostMapping("/animals/holder")
+    fun echoHolder(@RequestBody h: io.spia.e2e.dto.animals.AnimalHolder): io.spia.e2e.dto.animals.AnimalHolder = h
 }
