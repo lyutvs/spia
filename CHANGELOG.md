@@ -7,6 +7,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.1] - 2026-04-30
+
+### Fixed
+
+- Generated SDK fetch error path no longer drops `res.status` when the
+  server returns a non-JSON error body. `await res.json()` is now wrapped
+  in nested try/catch (json → text → null) so `ApiError(res.status, body, …)`
+  is constructed unconditionally (#23).
+- `renderSealedUnion` now validates `@JsonTypeName` values at KSP time and
+  fails the build (`KSPLogger.error` + `IllegalArgumentException`) when a
+  tag contains `'`, `\`, backtick, `\n`, or `\r` — characters that would
+  produce syntactically invalid TypeScript in the discriminated-union
+  emission (#25, marker `EC-12`).
+- **BREAKING (on-disk format)** — `<outputPath>.spia-lock` lines are now
+  tab-separated (`moduleName<TAB>sha256<TAB>iso8601`) instead of colon-
+  separated, eliminating the colon-collision risk for module names
+  containing `:`. The lockfile is now written via `Files.createTempFile`
+  + `Files.move(ATOMIC_MOVE)` to close the TOCTOU window between
+  existence check and write. Stale colon-delimited lines from earlier
+  versions are silently dropped on read and re-validated on next build —
+  no manual migration required (#26, marker `EC-13`).
+
 ## [0.4.0] - 2026-04-28
 
 ### Breaking Changes
