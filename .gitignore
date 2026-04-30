@@ -52,3 +52,13 @@ private.key
 
 # Audit sandbox controllers (kept local for testing only)
 app/src/main/kotlin/io/spia/demo/sandbox/
+
+# E2E testbed artifacts
+e2e/.gradle/
+e2e/build/
+e2e/e2e-backend/build/
+e2e/e2e-backend/.gradle/
+e2e/e2e-client/node_modules/
+e2e/e2e-client/src/generated/*
+!e2e/e2e-client/src/generated/.gitkeep
+e2e/backend.log
