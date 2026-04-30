@@ -48,4 +48,10 @@ class FixturesController {
             amountCents = 250000,
         ),
     )
+
+    @GetMapping("/messages/fixtures")
+    fun messageFixtures(): List<io.spia.e2e.dto.messages.Message> = listOf(
+        io.spia.e2e.dto.messages.TextMessage(body = "hello"),
+        io.spia.e2e.dto.messages.ImageMessage(url = "https://example.com/x.png", widthPx = 1024),
+    )
 }

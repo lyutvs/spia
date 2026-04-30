@@ -14,4 +14,7 @@ class PolymorphicController {
 
     @PostMapping("/payments")
     fun echoPayment(@RequestBody event: io.spia.e2e.dto.payments.PaymentEvent): io.spia.e2e.dto.payments.PaymentEvent = event
+
+    @PostMapping("/messages")
+    fun echoMessage(@RequestBody m: io.spia.e2e.dto.messages.Message): io.spia.e2e.dto.messages.Message = m
 }
