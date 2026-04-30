@@ -63,4 +63,11 @@ class FixturesController {
             timestamp = 1714464000000L,
         ),
     )
+
+    @GetMapping("/edge/fixtures")
+    fun edgeFixtures(): List<io.spia.e2e.dto.edge.EdgeNamed> = listOf(
+        io.spia.e2e.dto.edge.WithHyphen(a = "h"),
+        io.spia.e2e.dto.edge.WithDot(b = "d"),
+        io.spia.e2e.dto.edge.WithLeadingDigit(c = "1"),
+    )
 }
