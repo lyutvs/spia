@@ -11,4 +11,7 @@ import org.springframework.web.bind.annotation.RestController
 class PolymorphicController {
     @PostMapping("/animals")
     fun echoAnimal(@RequestBody animal: Animal): Animal = animal
+
+    @PostMapping("/payments")
+    fun echoPayment(@RequestBody event: io.spia.e2e.dto.payments.PaymentEvent): io.spia.e2e.dto.payments.PaymentEvent = event
 }

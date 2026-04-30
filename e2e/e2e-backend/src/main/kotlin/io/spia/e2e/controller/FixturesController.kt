@@ -34,4 +34,18 @@ class FixturesController {
         page = 0,
         total = 3,
     )
+
+    @GetMapping("/payments/fixtures")
+    fun paymentFixtures(): List<io.spia.e2e.dto.payments.PaymentEvent> = listOf(
+        io.spia.e2e.dto.payments.PaymentEvent(
+            kind = "card",
+            payload = io.spia.e2e.dto.payments.CardPayload(last4 = "4242", brand = "visa"),
+            amountCents = 1000,
+        ),
+        io.spia.e2e.dto.payments.PaymentEvent(
+            kind = "bank",
+            payload = io.spia.e2e.dto.payments.BankTransferPayload(account = "DE89-3704-0044-0532-0130-00"),
+            amountCents = 250000,
+        ),
+    )
 }
