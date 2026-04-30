@@ -17,4 +17,7 @@ class PolymorphicController {
 
     @PostMapping("/messages")
     fun echoMessage(@RequestBody m: io.spia.e2e.dto.messages.Message): io.spia.e2e.dto.messages.Message = m
+
+    @PostMapping("/envelope")
+    fun echoEnvelope(@RequestBody e: io.spia.e2e.dto.events.Envelope): io.spia.e2e.dto.events.Envelope = e
 }

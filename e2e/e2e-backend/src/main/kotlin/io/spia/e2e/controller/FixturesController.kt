@@ -54,4 +54,13 @@ class FixturesController {
         io.spia.e2e.dto.messages.TextMessage(body = "hello"),
         io.spia.e2e.dto.messages.ImageMessage(url = "https://example.com/x.png", widthPx = 1024),
     )
+
+    @GetMapping("/envelope/fixtures")
+    fun envelopeFixtures(): List<io.spia.e2e.dto.events.Envelope> = listOf(
+        io.spia.e2e.dto.events.Envelope(
+            animal = Dog(name = "Rex", breed = "Husky"),
+            message = io.spia.e2e.dto.messages.TextMessage(body = "envelope-test"),
+            timestamp = 1714464000000L,
+        ),
+    )
 }
