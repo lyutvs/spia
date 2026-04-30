@@ -9,6 +9,10 @@ import com.google.devtools.ksp.symbol.KSClassDeclaration
 import com.google.devtools.ksp.symbol.KSFunctionDeclaration
 import io.spia.processor.model.*
 import java.io.File
+import java.nio.file.AtomicMoveNotSupportedException
+import java.nio.file.Files
+import java.nio.file.StandardCopyOption.ATOMIC_MOVE
+import java.nio.file.StandardCopyOption.REPLACE_EXISTING
 import java.security.MessageDigest
 import java.time.Instant
 
@@ -187,10 +191,19 @@ class SpiaProcessor(
 
     /**
      * Maintains a sidecar lockfile at `<outputFile>.spia-lock`.
-     * Each line: `moduleName:sha256Hex:iso8601Timestamp`
+     * Each line is **tab-separated**: `moduleName\tsha256Hex\tiso8601Timestamp`
+     * (breaking change from v0.4.0, which used a colon-delimited format).
+     * Lines that do not parse into exactly three tab-separated parts are silently dropped on read.
+     *
+     * The lockfile is written via an atomic temp-file + move sequence to avoid TOCTOU races
+     * between parallel Gradle workers sharing the same output path.
      *
      * If another module name already exists in the lockfile with a different SHA-256 digest,
      * emits a KSPLogger.warn so the build output surfaces the conflict (EC-10).
+     *
+     * **Finding H-1 (deferred):** the digest is recorded here *before* the caller writes the
+     * main output file (see `process()` → `writeOutput()` at the `updateLockfile` / `file.writeText`
+     * sequence). A crash between the two leaves the lockfile ahead of the actual output. Fix deferred.
      */
     private fun updateLockfile(outputFile: File, content: String) {
         val moduleName = environment.options["spia.moduleName"]
@@ -207,7 +220,7 @@ class SpiaProcessor(
         val existingEntries: MutableMap<String, LockEntry> = mutableMapOf()
         if (lockFile.exists()) {
             lockFile.readLines().forEach { line ->
-                val parts = line.split(":", limit = 3)
+                val parts = line.split("\t", limit = 3)
                 if (parts.size == 3) {
                     existingEntries[parts[0]] = LockEntry(parts[0], parts[1], parts[2])
                 }
@@ -230,13 +243,26 @@ class SpiaProcessor(
         // Update or insert current module entry
         existingEntries[moduleName] = LockEntry(moduleName, digest, timestamp)
 
-        // Write lockfile with stable (sorted) ordering
+        // Write lockfile with stable (sorted) ordering via atomic temp-file + move
+        val newContent = existingEntries.values
+            .sortedBy { it.module }
+            .joinToString("\n") { "${it.module}\t${it.sha256}\t${it.timestamp}" }
+
         lockFile.parentFile?.mkdirs()
-        lockFile.writeText(
-            existingEntries.values
-                .sortedBy { it.module }
-                .joinToString("\n") { "${it.module}:${it.sha256}:${it.timestamp}" }
-        )
+        val parentPath = lockFile.parentFile?.toPath()
+            ?: throw IllegalStateException("EC-13 SPIA: cannot resolve lockfile parent directory for ${lockFile.absolutePath}")
+        val tmp = Files.createTempFile(parentPath, ".spia-lock-", ".tmp")
+        try {
+            Files.writeString(tmp, newContent)
+            try {
+                Files.move(tmp, lockFile.toPath(), ATOMIC_MOVE)
+            } catch (_: AtomicMoveNotSupportedException) {
+                Files.move(tmp, lockFile.toPath(), REPLACE_EXISTING)
+            }
+        } catch (t: Throwable) {
+            try { Files.deleteIfExists(tmp) } catch (_: Throwable) { /* best-effort cleanup */ }
+            throw t
+        }
     }
 
     private fun sha256Hex(content: String): String {

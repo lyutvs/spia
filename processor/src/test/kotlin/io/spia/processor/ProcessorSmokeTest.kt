@@ -530,6 +530,165 @@ class ProcessorSmokeTest {
     }
 
     @Test
+    fun `EC-13 multi-module lockfile uses tab delimiter and atomic write`(@TempDir tempDir: File) {
+        val outputPath = File(tempDir, "generated/api-sdk.ts").absolutePath
+
+        val sourceA = SourceFile.kotlin(
+            "ModuleAController.kt",
+            """
+            package test
+
+            import org.springframework.web.bind.annotation.RestController
+            import org.springframework.web.bind.annotation.GetMapping
+
+            data class UserA(val id: Long, val name: String)
+
+            @RestController
+            class ModuleAController {
+                @GetMapping("/module-a/users")
+                fun listUsers(): List<UserA> = emptyList()
+            }
+            """.trimIndent()
+        )
+
+        val compilationA = KotlinCompilation().apply {
+            sources = listOf(sourceA, coreSpringStubs())
+            inheritClassPath = true
+            messageOutputStream = System.out
+            configureKsp {
+                symbolProcessorProviders.add(SpiaProcessorProvider())
+                processorOptions["spia.outputPath"] = outputPath
+                processorOptions["spia.moduleName"] = "module-a"
+                processorOptions["spia.apiClient"] = "axios"
+                incremental = false
+            }
+        }
+
+        val resultA = compilationA.compile()
+        assertEquals(KotlinCompilation.ExitCode.OK, resultA.exitCode, "module-a compilation should succeed")
+
+        val sourceB = SourceFile.kotlin(
+            "ModuleBController.kt",
+            """
+            package test
+
+            import org.springframework.web.bind.annotation.RestController
+            import org.springframework.web.bind.annotation.GetMapping
+
+            data class ProductB(val sku: String, val price: Double)
+
+            @RestController
+            class ModuleBController {
+                @GetMapping("/module-b/products")
+                fun listProducts(): List<ProductB> = emptyList()
+            }
+            """.trimIndent()
+        )
+
+        val compilationB = KotlinCompilation().apply {
+            sources = listOf(sourceB, coreSpringStubs())
+            inheritClassPath = true
+            messageOutputStream = System.out
+            configureKsp {
+                symbolProcessorProviders.add(SpiaProcessorProvider())
+                processorOptions["spia.outputPath"] = outputPath
+                processorOptions["spia.moduleName"] = "module-b"
+                processorOptions["spia.apiClient"] = "axios"
+                incremental = false
+            }
+        }
+
+        val resultB = compilationB.compile()
+        assertEquals(KotlinCompilation.ExitCode.OK, resultB.exitCode, "module-b compilation should succeed")
+
+        val lockFile = File("$outputPath.spia-lock")
+        assertTrue(lockFile.exists(), "lockfile should exist after two modules write")
+
+        val lockContent = lockFile.readText()
+        val lockLines = lockContent.lines().filter { it.isNotBlank() }
+
+        // Assert each non-blank line contains exactly two tab characters
+        lockLines.forEach { line ->
+            assertEquals(2, line.count { it == '\t' },
+                "each lockfile line must contain exactly two tabs, got: ${line.replace("\t", "\\t")}")
+        }
+
+        // Assert each non-blank line splits into exactly three parts on tab
+        lockLines.forEach { line ->
+            assertEquals(3, line.split("\t", limit = 3).size,
+                "each lockfile line must split into 3 parts on tab, got: ${line.replace("\t", "\\t")}")
+        }
+
+        // Assert no leftover .spia-lock-*.tmp siblings
+        val parentDir = lockFile.parentFile
+        val tmpFiles = parentDir.listFiles { f -> f.name.startsWith(".spia-lock-") && f.name.endsWith(".tmp") }
+        assertTrue(tmpFiles.isNullOrEmpty(), "no leftover .spia-lock-*.tmp temp files should remain")
+    }
+
+    @Test
+    fun `EC-13 stale colon-delimited lockfile lines are silently dropped on read`(@TempDir tempDir: File) {
+        val outputPath = File(tempDir, "generated/api-sdk.ts").absolutePath
+
+        val lockFile = File("$outputPath.spia-lock")
+        lockFile.parentFile.mkdirs()
+        assertTrue(lockFile.parentFile.exists(), "lockfile parent must exist before seeding")
+
+        // Pre-write an old colon-delimited format line
+        lockFile.writeText("module-old:abc123:2026-04-27T10:00:00Z")
+
+        val source = SourceFile.kotlin(
+            "UserController.kt",
+            """
+            package test
+
+            import org.springframework.web.bind.annotation.RestController
+            import org.springframework.web.bind.annotation.GetMapping
+
+            data class User(val id: Long, val name: String)
+
+            @RestController
+            class UserController {
+                @GetMapping("/users")
+                fun listUsers(): List<User> = emptyList()
+            }
+            """.trimIndent()
+        )
+
+        val compilation = KotlinCompilation().apply {
+            sources = listOf(source, coreSpringStubs())
+            inheritClassPath = true
+            messageOutputStream = System.out
+            configureKsp {
+                symbolProcessorProviders.add(SpiaProcessorProvider())
+                processorOptions["spia.outputPath"] = outputPath
+                processorOptions["spia.moduleName"] = "module-new"
+                processorOptions["spia.apiClient"] = "axios"
+                incremental = false
+            }
+        }
+
+        val result = compilation.compile()
+        assertEquals(KotlinCompilation.ExitCode.OK, result.exitCode, "compilation should succeed")
+
+        val lockLines = lockFile.readLines().filter { it.isNotBlank() }
+
+        // Assert lockfile is tab-delimited and contains exactly one entry
+        assertEquals(1, lockLines.size, "stale colon-delimited lines should be dropped; only one entry should remain")
+
+        // Assert the surviving entry is tab-delimited
+        lockLines.forEach { line ->
+            assertEquals(2, line.count { it == '\t' },
+                "surviving lockfile line must use tab delimiter, got: ${line.replace("\t", "\\t")}")
+        }
+
+        // Assert module-old did not survive
+        assertFalse(
+            lockLines.any { it.startsWith("module-old") },
+            "module-old (stale colon-format entry) must not survive in the new lockfile"
+        )
+    }
+
+    @Test
     fun `fetch emits createApi baseUrl string signature and fetch call`(@TempDir tempDir: File) {
         val outputPath = File(tempDir, "generated/api-sdk.ts").absolutePath
 

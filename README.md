@@ -293,13 +293,17 @@ spia {
 If two modules accidentally point to the **same** `outputPath`, SPIA emits a
 KSP warning in the second module's build output and creates a
 `<outputPath>.spia-lock` sidecar file. The lockfile records one line per
-writer in `moduleName:sha256:iso8601` format so you can identify which
-modules are in conflict:
+writer in tab-separated `moduleName\tsha256\tiso8601` format so you can
+identify which modules are in conflict:
 
 ```
-module-a:a1b2c3...:2026-04-27T10:00:00Z
-module-b:d4e5f6...:2026-04-27T10:01:00Z
+module-a	a1b2c3...	2026-04-27T10:00:00Z
+module-b	d4e5f6...	2026-04-27T10:01:00Z
 ```
+
+> **v0.4.1 note:** the delimiter changed from `:` to `\t` (tab). Stale
+> `.spia-lock` lines written by v0.4.0 or earlier are silently dropped and
+> re-validated on the first build with v0.4.1.
 
 The warning contains the marker `EC-10` for easy filtering in CI logs.
 No warning is emitted when the same module regenerates its own file (same
