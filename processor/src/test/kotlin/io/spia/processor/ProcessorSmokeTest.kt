@@ -709,6 +709,188 @@ class ProcessorSmokeTest {
     }
 
     @Test
+    fun `EC-12 sealed @JsonTypeName containing single-quote fails KSP compilation`(@TempDir tempDir: File) {
+        val outputPath = File(tempDir, "generated/api-sdk.ts").absolutePath
+
+        val source = SourceFile.kotlin(
+            "SealedSingleQuoteController.kt",
+            """
+            package test
+
+            import org.springframework.web.bind.annotation.RestController
+            import org.springframework.web.bind.annotation.GetMapping
+            import org.springframework.web.bind.annotation.RequestMapping
+            import com.fasterxml.jackson.annotation.JsonTypeInfo
+            import com.fasterxml.jackson.annotation.JsonTypeName
+            import com.fasterxml.jackson.annotation.JsonSubTypes
+
+            @JsonTypeInfo(use = JsonTypeInfo.Id.NAME, property = "kind")
+            @JsonSubTypes(
+                JsonSubTypes.Type(value = ItsCircle::class, name = "it's"),
+            )
+            sealed class BadShape
+
+            @JsonTypeName("it's")
+            data class ItsCircle(val radius: Double) : BadShape()
+
+            @RestController
+            @RequestMapping("/api/bad-shapes")
+            class SealedSingleQuoteController {
+                @GetMapping("/circle")
+                fun getCircle(): BadShape = ItsCircle(radius = 5.0)
+            }
+            """.trimIndent()
+        )
+
+        val compilation = KotlinCompilation().apply {
+            sources = listOf(source, coreSpringStubs(), jacksonStubs())
+            inheritClassPath = true
+            messageOutputStream = System.out
+            configureKsp {
+                symbolProcessorProviders.add(SpiaProcessorProvider())
+                processorOptions["spia.outputPath"] = outputPath
+                processorOptions["spia.apiClient"] = "axios"
+                incremental = false
+            }
+        }
+
+        val result = compilation.compile()
+        assertEquals(
+            KotlinCompilation.ExitCode.COMPILATION_ERROR,
+            result.exitCode,
+            "compilation must fail when @JsonTypeName tag contains a single-quote"
+        )
+        assertTrue(result.messages.contains("EC-12"), "error message must mention EC-12 marker")
+        assertTrue(result.messages.contains("@JsonTypeName"), "error message must mention @JsonTypeName")
+    }
+
+    @Test
+    fun `EC-12 sealed @JsonTypeName with backtick newline backslash also fails KSP compilation`(@TempDir tempDir: File) {
+        // Each unsafe character (backtick, newline, carriage-return, backslash) must independently trigger EC-12.
+        val cases = listOf(
+            "backtick" to "bad`tag",
+            "newline" to "bad\\ntag",
+            "carriageReturn" to "bad\\rtag",
+            "backslash" to "bad\\\\tag",
+        )
+
+        for ((label, badTag) in cases) {
+            val outputPath = File(tempDir, "generated/api-sdk-$label.ts").absolutePath
+
+            val source = SourceFile.kotlin(
+                "SealedUnsafeController_$label.kt",
+                """
+                package test
+
+                import org.springframework.web.bind.annotation.RestController
+                import org.springframework.web.bind.annotation.GetMapping
+                import org.springframework.web.bind.annotation.RequestMapping
+                import com.fasterxml.jackson.annotation.JsonTypeInfo
+                import com.fasterxml.jackson.annotation.JsonTypeName
+                import com.fasterxml.jackson.annotation.JsonSubTypes
+
+                @JsonTypeInfo(use = JsonTypeInfo.Id.NAME, property = "kind")
+                @JsonSubTypes(
+                    JsonSubTypes.Type(value = UnsafeSubtype::class, name = "$badTag"),
+                )
+                sealed class UnsafeShape
+
+                @JsonTypeName("$badTag")
+                data class UnsafeSubtype(val v: Int) : UnsafeShape()
+
+                @RestController
+                @RequestMapping("/api/unsafe-shapes")
+                class SealedUnsafeController_$label {
+                    @GetMapping("/x")
+                    fun getX(): UnsafeShape = UnsafeSubtype(v = 1)
+                }
+                """.trimIndent()
+            )
+
+            val compilation = KotlinCompilation().apply {
+                sources = listOf(source, coreSpringStubs(), jacksonStubs())
+                inheritClassPath = true
+                messageOutputStream = System.out
+                configureKsp {
+                    symbolProcessorProviders.add(SpiaProcessorProvider())
+                    processorOptions["spia.outputPath"] = outputPath
+                    processorOptions["spia.apiClient"] = "axios"
+                    incremental = false
+                }
+            }
+
+            val result = compilation.compile()
+            assertEquals(
+                KotlinCompilation.ExitCode.COMPILATION_ERROR,
+                result.exitCode,
+                "compilation must fail when @JsonTypeName tag contains $label"
+            )
+            assertTrue(result.messages.contains("EC-12"), "[$label] error message must mention EC-12 marker")
+            assertTrue(result.messages.contains("@JsonTypeName"), "[$label] error message must mention @JsonTypeName")
+        }
+    }
+
+    @Test
+    fun `EC-12 sealed @JsonTypeName with safe characters compiles cleanly`(@TempDir tempDir: File) {
+        val outputPath = File(tempDir, "generated/api-sdk.ts").absolutePath
+
+        val source = SourceFile.kotlin(
+            "SealedSafeTagController.kt",
+            """
+            package test
+
+            import org.springframework.web.bind.annotation.RestController
+            import org.springframework.web.bind.annotation.GetMapping
+            import org.springframework.web.bind.annotation.RequestMapping
+            import com.fasterxml.jackson.annotation.JsonTypeInfo
+            import com.fasterxml.jackson.annotation.JsonTypeName
+            import com.fasterxml.jackson.annotation.JsonSubTypes
+
+            @JsonTypeInfo(use = JsonTypeInfo.Id.NAME, property = "kind")
+            @JsonSubTypes(
+                JsonSubTypes.Type(value = SafeVariant::class, name = "my-tag_v2.1"),
+            )
+            sealed class SafeShape
+
+            @JsonTypeName("my-tag_v2.1")
+            data class SafeVariant(val v: Int) : SafeShape()
+
+            @RestController
+            @RequestMapping("/api/safe-shapes")
+            class SealedSafeTagController {
+                @GetMapping("/x")
+                fun getX(): SafeShape = SafeVariant(v = 1)
+            }
+            """.trimIndent()
+        )
+
+        val compilation = KotlinCompilation().apply {
+            sources = listOf(source, coreSpringStubs(), jacksonStubs())
+            inheritClassPath = true
+            messageOutputStream = System.out
+            configureKsp {
+                symbolProcessorProviders.add(SpiaProcessorProvider())
+                processorOptions["spia.outputPath"] = outputPath
+                processorOptions["spia.apiClient"] = "axios"
+                incremental = false
+            }
+        }
+
+        val result = compilation.compile()
+        assertEquals(
+            KotlinCompilation.ExitCode.OK,
+            result.exitCode,
+            "compilation must succeed when @JsonTypeName tag has only safe characters"
+        )
+        assertFalse(result.messages.contains("EC-12"), "no EC-12 error must fire for safe tag")
+
+        assertTrue(File(outputPath).exists(), "SDK file not generated for safe-tag sealed union")
+        val sdk = File(outputPath).readText()
+        assertTrue(sdk.contains("type SafeShape ="), "SafeShape type alias missing")
+        assertTrue(sdk.contains("'my-tag_v2.1'"), "discriminator literal 'my-tag_v2.1' missing")
+    }
+
+    @Test
     fun `EC-10 Jackson annotations - JsonProperty renames field, JsonAlias emits jsdoc, JsonInclude marks optional`(@TempDir tempDir: File) {
         val outputPath = File(tempDir, "generated/api-sdk.ts").absolutePath
 

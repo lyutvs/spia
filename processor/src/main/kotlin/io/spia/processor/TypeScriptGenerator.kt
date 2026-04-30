@@ -373,11 +373,33 @@ class TypeScriptGenerator(private val config: SdkConfig, private val logger: KSP
         // Then emit the union type alias.
         if (sealedUnion.discriminator != null) {
             // Discriminated union: each member is intersected with the literal discriminator object.
-            val members = sealedUnion.subtypes.joinToString(" | ") { st ->
-                val tag = st.tag ?: st.dto.name
-                "({ ${sealedUnion.discriminator}: '${tag}' } & ${st.dto.name})"
+            // Validation of `tag` against unsafe TS string-literal characters happens inside the
+            // joinToString lambda (EC-12). In a KSP run, logger?.error marks the build with an
+            // error which the framework surfaces as a COMPILATION_ERROR; the throw is a hard
+            // fail-fast for direct (non-KSP) callers where logger is null. We catch it locally so
+            // KSP can finish reporting and exit cleanly with COMPILATION_ERROR rather than
+            // INTERNAL_ERROR.
+            try {
+                val members = sealedUnion.subtypes.joinToString(" | ") { st ->
+                    val tag = st.tag ?: st.dto.name
+                    val unsafe = setOf('\'', '\\', '`', '\n', '\r')
+                    val offending = tag.firstOrNull { it in unsafe }
+                    if (offending != null) {
+                        val msg = "EC-12 SPIA: @JsonTypeName value '$tag' on subtype '${st.dto.name}' " +
+                                  "of sealed union '${sealedUnion.name}' contains unsafe character " +
+                                  "'${offending}' (TS string-literal would be invalid). " +
+                                  "Allowed: any character except ' \\ \\` newline carriage-return."
+                        logger?.error(msg)
+                        throw IllegalArgumentException(msg)
+                    }
+                    "({ ${sealedUnion.discriminator}: '${tag}' } & ${st.dto.name})"
+                }
+                sb.appendLine("export type ${sealedUnion.name} = $members;")
+            } catch (e: IllegalArgumentException) {
+                // Re-throw when no KSP logger is available (direct unit-test path) so the failure
+                // is observable; otherwise swallow so KSP returns COMPILATION_ERROR via logger.error.
+                if (logger == null) throw e
             }
-            sb.appendLine("export type ${sealedUnion.name} = $members;")
         } else {
             // Nominal union: simple A | B | C without discriminator literals.
             val members = sealedUnion.subtypes.joinToString(" | ") { it.dto.name }
