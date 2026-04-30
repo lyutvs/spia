@@ -17,4 +17,21 @@ class FixturesController {
         Cat(name = "Whiskers", livesLeft = 9),
         Bird(name = "Tweety", wingspanCm = 12.5),
     )
+
+    @GetMapping("/animals/list/fixtures")
+    fun animalListFixtures(): List<Animal> = animalFixtures()
+
+    @GetMapping("/animals/map/fixtures")
+    fun animalMapFixtures(): Map<String, Animal> = mapOf(
+        "alpha" to Dog(name = "Rex", breed = "Husky"),
+        "beta" to Cat(name = "Whiskers", livesLeft = 9),
+        "gamma" to Bird(name = "Tweety", wingspanCm = 12.5),
+    )
+
+    @GetMapping("/animals/page/fixtures")
+    fun animalPageFixtures(): io.spia.e2e.dto.Page<Animal> = io.spia.e2e.dto.Page(
+        items = animalFixtures(),
+        page = 0,
+        total = 3,
+    )
 }
