@@ -72,3 +72,40 @@ A previous attempt to use `"exclude": ["src/generated/**"]` did NOT work: TypeSc
 **Implications for downstream tasks:**
 - Task 9 (Case 7 — `Envelope` containing two polymorphic hierarchies) is a non-generic class and should NOT hit this. But verify carefully if any future case uses a generic envelope.
 - Real-world consumers using a `Page<T>`-style pagination wrapper around polymorphic items WILL hit this in production.
+
+## F3 — `EXTERNAL_PROPERTY` mode is emitted identically to `PROPERTY` mode
+
+**Discovered in:** Task 7 (Case 5 — `PaymentEvent` with EXTERNAL_PROPERTY discriminator)
+**Component:** SPIA generator
+**SDK version:** 0.4.1
+
+**Symptom:** Given a Kotlin sealed class annotated with `@JsonTypeInfo(use = NAME, include = EXTERNAL_PROPERTY, property = "kind")`, SPIA emits the TS type as
+
+```ts
+export type PaymentPayload = ({ kind: 'bank' } & BankTransferPayload) | ({ kind: 'card' } & CardPayload);
+```
+
+This is identical to what SPIA emits for `include = PROPERTY` (the default). The `EXTERNAL_PROPERTY` semantic — that the discriminator lives OUTSIDE the polymorphic value, as a sibling on the parent — is not represented in the generated TS.
+
+**Why it still works (accidentally):** Jackson's runtime behavior with EXTERNAL_PROPERTY when the parent has a same-named regular field (here, `PaymentEvent.kind: String`) is to consume the parent field as a normal value AND require the discriminator inside the polymorphic value. The wire format ends up requiring `kind` at BOTH parent level AND inside `payload`. SPIA's PROPERTY-style emission accidentally matches this wire shape. So round-trip tests pass — but only because of a Jackson quirk, not because the SDK understands EXTERNAL_PROPERTY.
+
+**Concrete demonstration:** Sending `{kind: "card", payload: {last4, brand}, amountCents}` (no `kind` inside payload, matching the documented EXTERNAL_PROPERTY contract) yields HTTP 400 with `missing type id property 'kind' (for POJO property 'payload')`. Sending `{kind: "card", payload: {kind: "card", last4, brand}, amountCents}` (duplicate `kind`) succeeds. The SDK's emitted type forces consumers into the second shape.
+
+**Suggested SDK fix (in priority order):**
+1. **Detect `include = EXTERNAL_PROPERTY` in KSP** and emit a TS type without the inlined discriminator on the union members:
+   ```ts
+   export type PaymentPayload = BankTransferPayload | CardPayload;
+   export interface PaymentEvent {
+     kind: 'bank' | 'card';   // discriminator at parent
+     payload: PaymentPayload;
+     amountCents: number;
+   }
+   ```
+   Pair with documentation noting that the consumer must keep parent `kind` and payload type in sync.
+2. **Alternative:** explicitly document in the SDK that EXTERNAL_PROPERTY is NOT supported and emit a KSP warning when it's encountered, recommending PROPERTY mode instead.
+
+**Workaround in this testbed:** Test for Case 5 constructs payloads with the discriminator inlined inside the payload object (matching SPIA's emission and the Jackson wire format). A header comment in `tests/external-property.test.ts` documents the quirk so future readers don't trip on it.
+
+**Implications:**
+- Real-world consumers reading the SDK without runtime testing might assume `payload: PaymentPayload` (discriminated union) means they only need to set `payload`'s discriminator — not parent's. They'll get 400s in production.
+- A future SDK fix that properly differentiates EXTERNAL_PROPERTY would be a BREAKING CHANGE for any consumer who adapted to the current behavior.
