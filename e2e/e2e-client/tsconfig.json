@@ -9,9 +9,8 @@
     "skipLibCheck": true,
     "resolveJsonModule": true,
     "isolatedModules": true,
-    "lib": ["ES2022"],
+    "lib": ["ES2022", "DOM"],
     "types": ["node"]
   },
-  "include": ["src/**/*", "tests/**/*"],
-  "exclude": ["src/generated/**"]
+  "include": ["src/**/*", "tests/**/*"]
 }

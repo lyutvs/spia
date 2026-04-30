@@ -33,4 +33,6 @@ Under modern strict TS configs (`lib: ["ES2022"], types: ["node"]`), `Response.j
 **Suggested SDK fix:** In the generated client, change `return res.json();` to `return res.json() as Promise<RetType>;` (or refactor the helper that wraps `fetch`). Affects:
 - Per-controller `<verb><Path>` functions where the return type is non-`void`.
 
-**Workaround in this testbed:** `e2e/e2e-client/tsconfig.json` excludes `src/generated/**`. The test files still import the types because TS follows imports regardless of `include`/`exclude`. The runtime tests are unaffected.
+**Workaround in this testbed:** `e2e/e2e-client/tsconfig.json` adds `"DOM"` to its `lib` array. Browser typings make `Response.json()` return `Promise<any>`, which lets the SPIA-generated bare `return res.json()` typecheck. Side effect: DOM globals (`window`, `document`, …) leak into test files, but our tests don't use them.
+
+A previous attempt to use `"exclude": ["src/generated/**"]` did NOT work: TypeScript follows imports for *type-checking*, not just *type resolution*, so the generated file gets pulled back into the program by `import type { Animal } from '../src/generated/api-sdk'` in the test files.
