@@ -109,3 +109,35 @@ This is identical to what SPIA emits for `include = PROPERTY` (the default). The
 **Implications:**
 - Real-world consumers reading the SDK without runtime testing might assume `payload: PaymentPayload` (discriminated union) means they only need to set `payload`'s discriminator — not parent's. They'll get 400s in production.
 - A future SDK fix that properly differentiates EXTERNAL_PROPERTY would be a BREAKING CHANGE for any consumer who adapted to the current behavior.
+
+## F4 — `WRAPPER_OBJECT` mode is also emitted identically to `PROPERTY`
+
+**Discovered in:** Task 8 (Case 6 — `Message` with WRAPPER_OBJECT discriminator)
+**Component:** SPIA generator
+**SDK version:** 0.4.1
+**Related:** F3 (same root cause)
+
+**Symptom:** Given a Kotlin sealed class annotated with `@JsonTypeInfo(use = NAME, include = WRAPPER_OBJECT)`, SPIA emits:
+
+```ts
+export type Message = ({ type: 'image' } & ImageMessage) | ({ type: 'text' } & TextMessage);
+```
+
+But the actual Jackson wire format for WRAPPER_OBJECT is `{"text": {"body": "hello"}}` — the subtype name is the OUTER object key. The emitted TS type is structurally wrong; consumers must cast (`as unknown as Message`) to bypass strict typing.
+
+**Likely root cause:** Combined with F3, SPIA appears to be ignoring the `include` parameter of `@JsonTypeInfo` entirely — it always emits the PROPERTY-mode shape regardless of the mode. F4 may also indicate the `property` name isn't being read (the default `@type` would be expected; SPIA emits `type`, suggesting either a hardcoded default or a different path through KSP).
+
+**Suggested SDK fix:** In the KSP processor, read `@JsonTypeInfo` properly:
+- `include = PROPERTY` (default) → emit `({ <prop>: 'name' } & Subtype) | ...` (current behavior)
+- `include = EXTERNAL_PROPERTY` → emit subtype-only union; require parent class to declare the discriminator separately (see F3)
+- `include = WRAPPER_OBJECT` → emit `{ <subtypeName1>: Subtype1 } | { <subtypeName2>: Subtype2 } | ...`
+- `include = WRAPPER_ARRAY` → similarly distinct
+- Read the explicit `property = "..."` value rather than always using `type`
+
+This is a bigger generator change than F3 alone, but F3 + F4 are the same root cause and should be fixed together.
+
+**Workaround in this testbed:** Cast at the test call site — `as unknown as Message`. Documented in `tests/wrapper-object.test.ts`. Round-trip tests still validate runtime behavior; only typing is wrong.
+
+**Implications:**
+- Same severity as F3: real consumers will get HTTP 400 if they trust the SDK type.
+- Fixing F3 + F4 together would be a meaningful breaking change for anyone who adapted to current behavior. Recommend bundling with a major version bump.
