@@ -1,0 +1,15 @@
+server:
+  port: ${SPIA_E2E_BACKEND_PORT:18080}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health
+  endpoint:
+    health:
+      enabled: true
+
+spring:
+  jackson:
+    default-property-inclusion: non_null
