@@ -76,8 +76,8 @@ environment with a `fetch` global) on the frontend.
 ```kotlin
 // build.gradle.kts (consumer)
 plugins {
-    id("com.google.devtools.ksp") version "2.1.20-1.0.31"
-    id("io.github.lyutvs.spia") version "0.2.0"
+    id("com.google.devtools.ksp") version "2.3.7"
+    id("io.github.lyutvs.spia") version "0.4.1"
 }
 
 spia {
@@ -95,7 +95,7 @@ configured `outputPath`.
 
 ```typescript
 import { createApi } from './generated/api-sdk';
-const api = createApi('http://localhost:8080');
+const api = createApi({ baseUrl: 'http://localhost:8080' });
 const user = await api.user.getUserProfile(1);
 ```
 
@@ -103,7 +103,7 @@ No runtime dependency is installed — the generated SDK uses the platform's
 built-in `fetch`. To switch to an axios-based SDK (e.g., for interceptors or
 custom auth), see [Configuration options](#configuration-options).
 
-## What's supported in v0.4.0
+## What's supported in v0.4.1
 
 | Pattern | Status | Notes |
 |---|:---:|---|
@@ -128,10 +128,10 @@ custom auth), see [Configuration options](#configuration-options).
 | `ResponseEntity<T>` | ✅ | Unwrapped; `T` becomes the response type |
 | Kotlin `enum class` | ✅ | Rendered as union or `enum`, configurable |
 | `java.time.*`, `java.util.UUID`, `java.util.Date` | ✅ | Mapped to `string` |
-| fetch template | ✅ | Default; `createApi(baseUrl: string)`, `URLSearchParams`-backed query building, `encodeURIComponent` on paths, `if (!res.ok) throw` on every call |
+| fetch template | ✅ | Default; `createApi(options?: ClientOptions)`, `URLSearchParams`-backed query building, `encodeURIComponent` on paths, typed `ApiError` thrown on every non-2xx response |
 | axios template | ✅ | Opt-in via `apiClient = "axios"`; `createApi(client: AxiosInstance)` — delegate to the passed instance for interceptors/auth/retries |
 
-## Known exclusions in v0.4.0
+## Known exclusions in v0.4.1
 
 | Pattern | Status | Workaround |
 |---|---|---|
@@ -203,12 +203,20 @@ export interface Page<T> {
   size: number;
 }
 
-export function createApi(baseUrl: string) {
+export interface ClientOptions {
+  baseUrl?: string;
+  timeoutMs?: number;
+  authInterceptor?: (request: RequestInit) => RequestInit | Promise<RequestInit>;
+  retry?: { maxAttempts: number; backoffMs: number; retryOn?: (status: number) => boolean };
+}
+
+export function createApi(options?: ClientOptions) {
+  const _baseUrl = options?.baseUrl ?? '';
   return {
     user: {
-      getUserProfile: async (id: number): Promise<UserProfileDto> => {
-        const res = await fetch(`${baseUrl}/api/users/${encodeURIComponent(String(id))}`, { method: 'GET' });
-        if (!res.ok) throw new Error(`SPIA GET ${res.url} failed: ${res.status} ${res.statusText}`);
+      getUserProfile: async (id: number, signal?: AbortSignal): Promise<UserProfileDto> => {
+        const res = await fetch(`${_baseUrl}/api/users/${encodeURIComponent(String(id))}`, { method: 'GET', signal });
+        if (!res.ok) throw new ApiError(res.status, await res.json().catch(() => null), `SPIA GET ${res.url} failed: ${res.status} ${res.statusText}`);
         return res.json();
       },
 
@@ -216,14 +224,14 @@ export function createApi(baseUrl: string) {
        * @param {number} [page=0] Server default: 0
        * @param {number} [size=20] Server default: 20
        */
-      listUsers: async (page?: number, size?: number, keyword?: string): Promise<Page<UserProfileDto>> => {
+      listUsers: async (page?: number, size?: number, keyword?: string, signal?: AbortSignal): Promise<Page<UserProfileDto>> => {
         const params = new URLSearchParams();
         if (page !== undefined) params.append('page', String(page));
         if (size !== undefined) params.append('size', String(size));
         if (keyword !== undefined) params.append('keyword', String(keyword));
         const qs = params.toString();
-        const res = await fetch(`${baseUrl}/api/users/list${qs ? `?${qs}` : ''}`, { method: 'GET' });
-        if (!res.ok) throw new Error(`SPIA GET ${res.url} failed: ${res.status} ${res.statusText}`);
+        const res = await fetch(`${_baseUrl}/api/users/list${qs ? `?${qs}` : ''}`, { method: 'GET', signal });
+        if (!res.ok) throw new ApiError(res.status, await res.json().catch(() => null), `SPIA GET ${res.url} failed: ${res.status} ${res.statusText}`);
         return res.json();
       },
     },
@@ -231,12 +239,16 @@ export function createApi(baseUrl: string) {
 }
 ```
 
+> Excerpt simplified for readability. The actual emitted code also wires
+> per-call `timeoutMs` (via `AbortController` + `ApiTimeoutError`),
+> `authInterceptor`, and `retry` from the `ClientOptions` argument.
+
 Use from the frontend:
 
 ```typescript
 import { createApi, type UserProfileDto } from './generated/api-sdk';
 
-const api = createApi('http://localhost:8080');
+const api = createApi({ baseUrl: 'http://localhost:8080' });
 const user: UserProfileDto = await api.user.getUserProfile(1);
 ```
 
@@ -541,7 +553,7 @@ export type GetItemsError = ApiError<NotFoundError | BadRequestError>;
 ```typescript
 import { createApi, ApiError } from './api-sdk';
 
-const api = createApi('https://api.example.com');
+const api = createApi({ baseUrl: 'https://api.example.com' });
 
 try {
   const user = await api.user.getUserProfile(42);
@@ -562,7 +574,7 @@ try {
 
 ## Configuring the client
 
-When using `apiClient = "fetch"` (the default), the generated `createApi` accepts a `ClientOptions` object with two optional fields: `authInterceptor` and `retry`.
+When using `apiClient = "fetch"` (the default), the generated `createApi` accepts a `ClientOptions` object with optional fields: `baseUrl`, `timeoutMs`, `authInterceptor`, and `retry`.
 
 ### Auth interceptor
 
