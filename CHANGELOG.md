@@ -11,6 +11,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- `gradle-plugin` module version aligned to `0.4.1` (was pinned at `0.3.0`).
+  The plugin's bundled `spia-version.properties` drives the processor
+  coordinate that `SpiaPlugin` auto-injects into a consumer's `ksp`
+  configuration, so a 0.3.0-pinned plugin would silently inject
+  `processor:0.3.0` for users requesting `version "0.4.1"`, missing every
+  0.4.x fix (#30).
 - Generated SDK fetch error path no longer drops `res.status` when the
   server returns a non-JSON error body. `await res.json()` is now wrapped
   in nested try/catch (json → text → null) so `ApiError(res.status, body, …)`
