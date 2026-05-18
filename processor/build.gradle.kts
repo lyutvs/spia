@@ -11,7 +11,7 @@ repositories {
 }
 
 dependencies {
-    implementation("com.google.devtools.ksp:symbol-processing-api:2.3.7")
+    implementation("com.google.devtools.ksp:symbol-processing-api:2.3.8")
 
     testImplementation(kotlin("test"))
     testImplementation("dev.zacsweers.kctfork:core:0.12.1")
