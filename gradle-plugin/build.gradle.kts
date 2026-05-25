@@ -13,7 +13,7 @@ repositories {
 }
 
 dependencies {
-    compileOnly("com.google.devtools.ksp:com.google.devtools.ksp.gradle.plugin:2.3.7")
+    compileOnly("com.google.devtools.ksp:com.google.devtools.ksp.gradle.plugin:2.3.8")
 }
 
 gradlePlugin {
