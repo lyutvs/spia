@@ -11,12 +11,12 @@ repositories {
 }
 
 dependencies {
-    implementation("com.google.devtools.ksp:symbol-processing-api:2.3.7")
+    implementation("com.google.devtools.ksp:symbol-processing-api:2.3.9")
 
     testImplementation(kotlin("test"))
-    testImplementation("dev.zacsweers.kctfork:core:0.12.1")
-    testImplementation("dev.zacsweers.kctfork:ksp:0.12.1")
-    testImplementation("org.junit.jupiter:junit-jupiter:6.0.3")
+    testImplementation("dev.zacsweers.kctfork:core:0.13.0")
+    testImplementation("dev.zacsweers.kctfork:ksp:0.13.0")
+    testImplementation("org.junit.jupiter:junit-jupiter:6.1.0")
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")
 }
 
