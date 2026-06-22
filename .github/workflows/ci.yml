@@ -22,7 +22,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: Validate Gradle wrapper
         uses: gradle/actions/wrapper-validation@v6
@@ -58,7 +58,7 @@ jobs:
       - name: Upload coverage to Codecov
         if: always()
         continue-on-error: true
-        uses: codecov/codecov-action@v6
+        uses: codecov/codecov-action@v7
         with:
           files: processor/build/reports/jacoco/test/jacocoTestReport.xml
           fail_ci_if_error: false
